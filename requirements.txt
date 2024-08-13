@@ -92,7 +92,7 @@ tigeropen==3.2.7
 toml==0.10.2
 toolz==0.12.1
 tornado==6.4.1
-typing_extensions==4.3.0
+typing-extensions>=4.5.0
 tzdata==2024.1
 tzlocal==5.2
 urllib3==1.26.19
