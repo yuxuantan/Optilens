@@ -1,6 +1,5 @@
 
 
-from controllers.gsheet_controller import GsheetController
 from controllers.tiger_controller import TigerController
 import datetime
 import streamlit as st
@@ -10,7 +9,6 @@ import matplotlib.pyplot as plt
 from controllers.crypto_controller import get_wallet_token_balances_price
 from controllers.cb_controller import get_coinbase_balance
 
-gc = GsheetController()
 tc = TigerController()
 
 sideb = st.sidebar
