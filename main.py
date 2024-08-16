@@ -5,6 +5,7 @@ import datetime
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import utils
 
 from controllers.crypto_controller import get_wallet_token_balances_price
 from controllers.cb_controller import get_coinbase_balance
@@ -109,8 +110,10 @@ with opt_col2:
     )
 
 total_pnl = round(sum([data['profit_usd'] for data in filled_options_data]), 2)
-filled_opt_tab.metric('Total Filled Options PnL', total_pnl)
 filled_options_df = pd.DataFrame(filled_options_data)
+# Calculate PnL change compared to 30 days ago
+pnl_change = round(total_pnl - utils.get_cumulative_sum_x_days_ago(filled_options_df, 30), 2)
+filled_opt_tab.metric('Total Filled Options PnL', total_pnl, pnl_change)
 
 filled_options_month_df = filled_options_df.copy()
 filled_options_month_df['month'] = filled_options_month_df['trade_time'].dt.to_period('M')
@@ -164,9 +167,14 @@ with stk_col2:
         key='option2'
     )
 
+
 total_pnl = round(sum([data['profit_usd'] for data in filled_stocks_data]), 2)
-filled_stk_tab.metric('Total Filled Stocks PnL', total_pnl)
 filled_stocks_df = pd.DataFrame(filled_stocks_data)
+# Calculate PnL change compared to 30 days ago
+pnl_change = round(total_pnl - utils.get_cumulative_sum_x_days_ago(filled_stocks_df, 30), 2)
+filled_stk_tab.metric('Total Filled Stocks PnL', total_pnl, pnl_change)
+
+
 
 col1, col2 = filled_stk_tab.columns([1,2])
 
