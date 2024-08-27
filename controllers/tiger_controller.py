@@ -5,19 +5,24 @@ import datetime
 import streamlit as st
 
 class TigerController:
-    def __init__(_self):
-        _self.trade_client = _self.create_trade_client()
+    def __init__(_self, credentials_dict={}):
+        _self.trade_client = _self.create_trade_client(credentials_dict)
 
-    def create_trade_client(_self):
+    def create_trade_client(_self, credentials_dict):
         config = TigerOpenClientConfig(sandbox_debug=None, enable_dynamic_domain=True,props_path=None)
-        config.private_key = st.secrets['TIGER_PRIVATE_KEY']
-        config.account = st.secrets['TIGER_ACCOUNT']
-        config.tiger_id = st.secrets['TIGER_ID']
+        if credentials_dict.get('tiger_private_key') is None or credentials_dict.get('tiger_account') is None or credentials_dict.get('tiger_id') is None:
+            config.private_key = st.secrets['TIGER_PRIVATE_KEY']
+            config.account = st.secrets['TIGER_ACCOUNT']
+            config.tiger_id = st.secrets['TIGER_ID']
+        else:
+            config.private_key = credentials_dict['tiger_private_key']
+            config.account = credentials_dict['tiger_account']
+            config.tiger_id = credentials_dict['tiger_id']
         trade_client = TradeClient(config)
         return trade_client
 
     @st.cache_data(ttl="1d")
-    def get_filled_orders(_self, sec_type = SecurityType.ALL, start_date = datetime.datetime.now()-datetime.timedelta(days=30), end_date = datetime.datetime.now().date()):
+    def get_orders(_self, sec_type = SecurityType.ALL, start_date = datetime.datetime.now()-datetime.timedelta(days=30), end_date = datetime.datetime.now().date()):
 
         date_diff_days = (end_date - start_date).days
         print("date_diff_days: " + str(date_diff_days))
