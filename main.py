@@ -14,7 +14,7 @@ if not user_id:
     if st.button("Login"):
         if user_id_input:
             # Redirect to the main app with the user_id in query parameters
-            st.query_params.user_id=user_id_input
+            st.query_params["user_id"]=user_id_input
             st.rerun()
         else:
             st.warning("User ID cannot be empty.")

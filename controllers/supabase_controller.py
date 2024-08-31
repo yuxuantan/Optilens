@@ -3,7 +3,18 @@ import streamlit as st
 
 # response = supabase.table("countries").select("*").execute()
 
+def fetch_alerts():
+    url: str = st.secrets["SUPABASE_URL"]
+    key: str = st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(url, key)
 
+    try:
+        response = supabase.table("alerts").select("*").execute()
+        return response.data
+    except Exception as e:
+        st.error("Error fetching alerts:")
+        st.error(str(e))
+        
 def create_user(email: str) -> str:
     url: str = st.secrets["SUPABASE_URL"]
     key: str = st.secrets["SUPABASE_KEY"]

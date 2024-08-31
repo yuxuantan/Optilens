@@ -1,11 +1,10 @@
 import telebot
 import supabase_controller as db
-import schedule
 import time
-import threading
+import streamlit as st
 
 # Initialize the bot with your token
-API_TOKEN = '5244204118:AAFLg6BjMqgfv6WNclKVDaIEgKcZhPnK818'
+API_TOKEN = st.secrets["TELEGRAM_BOT_API_TOKEN"]
 bot = telebot.TeleBot(API_TOKEN)
 
 # Function to send a message
@@ -30,27 +29,4 @@ def link_optilens_account(message):
         print("User found. Account linked successfully")
         db.update_telegram_chat_id(user_id, message.chat.id)
 
-def polling_thread():
-    bot.polling()
-
-def scheduling_thread():
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
-
-# Create and start the polling thread
-polling_thread = threading.Thread(target=polling_thread)
-polling_thread.start()
-
-# Schedule the send_message function to run every 3 seconds
-schedule.every(3).seconds.do(send_message)
-
-# Create and start the scheduling thread
-scheduling_thread = threading.Thread(target=scheduling_thread)
-scheduling_thread.start()
-
-# Wait for both threads to finish
-polling_thread.join()
-scheduling_thread.join()
-
-print('hello')
+bot.polling()
