@@ -1,0 +1,2 @@
+name,settings
+test,"{""tickers"": [""AMD"", ""TSLA""], ""preferences"": {""golden_cross"": true, ""death_cross"": true, ""rsi_overbought"": false, ""rsi_oversold"": false, ""sma_trend"": false}, ""short_sma_golden"": 50, ""long_sma_golden"": 200, ""sma_golden_alert_window_days"": 2, ""short_sma_death"": 50, ""long_sma_death"": 200, ""sma_death_alert_window_days"": 2, ""rsi_overbought_threshold"": 70, ""rsi_oversold_threshold"": 30, ""short_sma_trend"": 50, ""long_sma_trend"": 200, ""alert_method"": ""Telegram"", ""alert_interval"": 1, ""alert_enabled"": true}"
