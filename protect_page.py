@@ -1,6 +1,6 @@
 import streamlit as st
 import utils.supabase as db
-import stock_screener_page
+import main
 
 def protect_page():
     st.title("Login")
@@ -11,7 +11,7 @@ def protect_page():
         if user_id_input:
             # Redirect to the main app with the user_id in query parameters
             st.query_params["user_id"]=user_id_input
-            stock_screener_page()
+            main()
         else:
             st.warning("User ID cannot be empty.")
 
