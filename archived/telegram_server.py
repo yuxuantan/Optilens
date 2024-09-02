@@ -1,6 +1,5 @@
 import telebot
 import supabase_controller as db
-import time
 import streamlit as st
 
 # Initialize the bot with your token

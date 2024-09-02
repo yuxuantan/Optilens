@@ -1,10 +1,10 @@
 
 
-from controllers.tiger_controller import TigerController
+from archived.tiger_controller import TigerController
 import datetime
 import streamlit as st
 import pandas as pd
-import utils
+import archived.utils as utils
 tc = TigerController()
 
 def options_insights_page(user_data):

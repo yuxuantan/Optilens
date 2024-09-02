@@ -1,42 +1,407 @@
 import streamlit as st
-from stock_screener_page import stock_screener_page
-import controllers.supabase_controller as db
-# Get the user_id from URL query parameters
+import pandas as pd
+import utils.supabase as db
+import utils.indicator_evaluator as ie
+from protect_page import protect_page
 
-user_id = st.query_params["user_id"] if "user_id" in st.query_params else None
+# Load S&P 500 tickers
+sp500_df = pd.read_csv("./sp500_companies.csv")
+sp500_tickers = sp500_df["Symbol"].tolist()
 
-# If user_id is not provided in the URL, show the login page
-if not user_id:
-    st.title("Login")
-    st.write("Please enter your User ID to proceed.")
-    
-    user_id_input = st.text_input("User ID")
-    if st.button("Login"):
-        if user_id_input:
-            # Redirect to the main app with the user_id in query parameters
-            st.query_params["user_id"]=user_id_input
-            st.rerun()
-        else:
-            st.warning("User ID cannot be empty.")
-    
-    st.divider()
-    st.title("Sign Up")
-    email = st.text_input("Email Address")
-    if st.button("Sign Up"):
-        # simulate sign up successful after payment. create new user and login
-        user_id = db.create_user(email)
-        if user_id:
-            st.query_params.user_id=user_id
-            st.rerun()
-         
-else:
-    # Check if user exists on DB. if not, show login page
-    user_id = st.query_params.user_id
+
+# Function to display ticker input with autocomplete and multi-select
+def ticker_input(key="ticker_input", default=None):
+    selected_tickers = st.multiselect(
+        "Step 1: Select stock tickers",
+        options=sp500_tickers,
+        key=key,
+        default=default,
+        placeholder="Select 'ALL' to include all tickers.",
+    )
+    return selected_tickers
+
+
+def get_user_inputs(settings=None):
+    if settings is None:
+        settings = {
+            "tickers": [],
+            "indicator_settings": {
+                "golden_cross": {
+                    "is_enabled": False,
+                    "short_sma": 50,
+                    "long_sma": 200,
+                    "filter_window_days": 2,
+                },
+                "death_cross": {
+                    "is_enabled": False,
+                    "short_sma": 50,
+                    "long_sma": 200,
+                    "filter_window_days": 2,
+                },
+                "rsi_overbought": {
+                    "is_enabled": False,
+                    "threshold": 70,
+                },
+                "rsi_oversold": {
+                    "is_enabled": False,
+                    "threshold": 30,
+                },
+                "sma_bull_trend": {
+                    "is_enabled": False,
+                    "short_sma": 50,
+                    "long_sma": 200,
+                },
+                "sma_bear_trend": {
+                    "is_enabled": False,
+                    "short_sma": 50,
+                    "long_sma": 200,
+                },
+            },
+            "include_only_if_all_conditions_satisfied": False,
+        }
+
+    # Use the ticker_input function for adding tickers
+    settings["tickers"] = ticker_input(default=settings.get("tickers", []))
+    if "ALL" in settings["tickers"]:
+        settings["tickers"] = sp500_tickers  # Select all tickers if "ALL" is chosen
+
+    # Dropdown for selecting indicators
+
+    selected_indicators = st.multiselect(
+        "Step 2: Select technical indicators",
+        options=list(settings["indicator_settings"].keys()),
+        default=[
+            k for k, v in settings["indicator_settings"].items() if v["is_enabled"]
+        ],
+    )
+
+    for indicator in selected_indicators:
+        settings["indicator_settings"][indicator]["is_enabled"] = True
+
+        if indicator == "golden_cross":
+            with st.expander("Golden Cross Settings", expanded=False):
+                st.caption(
+                    "Golden Cross is a bullish signal that occurs when the short-term moving average crosses above the long-term moving average."
+                )
+                settings["indicator_settings"]["golden_cross"]["short_sma"] = (
+                    st.number_input(
+                        "Short SMA window for Golden Cross:",
+                        min_value=1,
+                        value=settings["indicator_settings"]["golden_cross"][
+                            "short_sma"
+                        ],
+                    )
+                )
+                settings["indicator_settings"]["golden_cross"]["long_sma"] = (
+                    st.number_input(
+                        "Long SMA window for Golden Cross:",
+                        min_value=1,
+                        value=settings["indicator_settings"]["golden_cross"][
+                            "long_sma"
+                        ],
+                    )
+                )
+                settings["indicator_settings"]["golden_cross"]["filter_window_days"] = (
+                    st.number_input(
+                        "Filter window for Golden Cross (in days):",
+                        min_value=1,
+                        value=settings["indicator_settings"]["golden_cross"][
+                            "filter_window_days"
+                        ],
+                    )
+                )
+
+        if indicator == "death_cross":
+            with st.expander("Death Cross Settings", expanded=False):
+                st.caption(
+                    "Death Cross is a bearish signal that occurs when the short-term moving average crosses below the long-term moving average."
+                )
+                settings["indicator_settings"]["death_cross"]["short_sma"] = (
+                    st.number_input(
+                        "Short SMA window for Death Cross:",
+                        min_value=1,
+                        value=settings["indicator_settings"]["death_cross"][
+                            "short_sma"
+                        ],
+                    )
+                )
+                settings["indicator_settings"]["death_cross"]["long_sma"] = (
+                    st.number_input(
+                        "Long SMA window for Death Cross:",
+                        min_value=1,
+                        value=settings["indicator_settings"]["death_cross"]["long_sma"],
+                    )
+                )
+                settings["indicator_settings"]["death_cross"]["filter_window_days"] = (
+                    st.number_input(
+                        "Filter window for Death Cross (in days):",
+                        min_value=1,
+                        value=settings["indicator_settings"]["death_cross"][
+                            "filter_window_days"
+                        ],
+                    )
+                )
+
+        if indicator == "rsi_overbought":
+            with st.expander("RSI Overbought Settings", expanded=False):
+                st.caption(
+                    "RSI Overbought is a bearish signal that occurs when the Relative Strength Index (RSI) is above a certain threshold."
+                )
+                settings["indicator_settings"]["rsi_overbought"]["threshold"] = (
+                    st.number_input(
+                        "RSI Overbought threshold:",
+                        min_value=1,
+                        max_value=100,
+                        value=settings["indicator_settings"]["rsi_overbought"][
+                            "threshold"
+                        ],
+                    )
+                )
+
+        if indicator == "rsi_oversold":
+            with st.expander("RSI Oversold Settings", expanded=False):
+                st.caption(
+                    "RSI Oversold is a bullish signal that occurs when the Relative Strength Index (RSI) is below a certain threshold."
+                )
+                settings["indicator_settings"]["rsi_oversold"]["threshold"] = (
+                    st.number_input(
+                        "RSI Oversold threshold:",
+                        min_value=1,
+                        max_value=100,
+                        value=settings["indicator_settings"]["rsi_oversold"][
+                            "threshold"
+                        ],
+                    )
+                )
+
+        if indicator == "sma_bull_trend":
+            with st.expander("SMA Bull Trend Settings", expanded=False):
+                st.caption(
+                    "SMA Bull Trend is a bullish signal that occurs when the short-term moving average is above the long-term moving average."
+                )
+                settings["indicator_settings"]["sma_bull_trend"]["short_sma"] = (
+                    st.number_input(
+                        "Short SMA window for Bull Trend:",
+                        min_value=1,
+                        value=settings["indicator_settings"]["sma_bull_trend"][
+                            "short_sma"
+                        ],
+                    )
+                )
+                settings["indicator_settings"]["sma_bull_trend"]["long_sma"] = (
+                    st.number_input(
+                        "Long SMA window for Bull Trend:",
+                        min_value=1,
+                        value=settings["indicator_settings"]["sma_bull_trend"][
+                            "long_sma"
+                        ],
+                    )
+                )
+
+        if indicator == "sma_bear_trend":
+            with st.expander("SMA Bear Trend Settings", expanded=False):
+                st.caption(
+                    "SMA Bear Trend is a bearish signal that occurs when the short-term moving average is below the long-term moving average."
+                )
+                settings["indicator_settings"]["sma_bear_trend"]["short_sma"] = (
+                    st.number_input(
+                        "Short SMA window for Bear Trend:",
+                        min_value=1,
+                        value=settings["indicator_settings"]["sma_bear_trend"][
+                            "short_sma"
+                        ],
+                    )
+                )
+                settings["indicator_settings"]["sma_bear_trend"]["long_sma"] = (
+                    st.number_input(
+                        "Long SMA window for Bear Trend:",
+                        min_value=1,
+                        value=settings["indicator_settings"]["sma_bear_trend"][
+                            "long_sma"
+                        ],
+                    )
+                )
+    # checkbox to specify whether conditions should be AND or OR
+    settings["include_only_if_all_conditions_satisfied"] = st.checkbox(
+        "All above conditions must be met",
+        value=settings["include_only_if_all_conditions_satisfied"],
+    )
+
+    return settings
+
+
+def refresh_configs(user_id):
     user_data = db.fetch_user_data(user_id)
-    if user_data.get('user') is None:
-        st.warning("User not found. Please login again.")
-        print("User not found. Please login again")
-        st.query_params.clear()
-        st.rerun()
+    st.session_state.configs = {
+        config["config_name"]: config["settings"]
+        for config in user_data.get("configs", {}) or {}
+    }
 
-    stock_screener_page(user_data)
+
+if "user_id" not in st.query_params:
+    protect_page()
+else:
+    user_id = st.query_params["user_id"]
+    user_data = db.fetch_user_data(user_id)
+    if user_data.get("user") is None:
+        protect_page()
+    else:
+        refresh_configs(user_id)
+
+        st.title("Optilens Stock Screener 📈")
+        st.subheader("Find stocks using technical indicators")
+
+        config_names = list(st.session_state.configs.keys())
+        config_names.insert(0, "➕ Create New")
+
+        # first time only. after that it will be some value no matter what
+        if st.session_state.get("selected_config") is None:
+            st.session_state.selected_config = "➕ Create New"
+
+        # Create the buttons
+        for config_name in config_names:
+            if config_name == "➕ Create New":
+                if st.sidebar.button(config_name, type="primary"):
+                    st.session_state.selected_config = config_name
+                st.sidebar.subheader("Saved Configs")
+            else:
+                if st.sidebar.button(config_name, use_container_width=True):
+                    st.session_state.selected_config = config_name
+
+        if st.session_state.selected_config == "➕ Create New":
+            settings = get_user_inputs()
+            col1, col2 = st.columns(2)
+
+            with col1.popover("💾 Save Configs"):
+                config_name = st.text_input("Name your screening configuration")
+                save_button = st.button("Confirm")
+
+            screen_button_placeholder = col2.empty()
+            screen_button = screen_button_placeholder.button("🔎 Screen")
+        else:
+            settings = get_user_inputs(
+                st.session_state.configs[st.session_state.selected_config]
+            )
+            col1, col2, col3 = st.columns(3)
+            save_button = col1.button("💾 Save Configs")
+            delete_button = col2.button("❌ Delete Filter")
+
+            screen_button_placeholder = col3.empty()
+            screen_button = screen_button_placeholder.button("🔎 Screen")
+
+        if save_button:
+            if (
+                config_name
+                and settings["tickers"]
+                and len(
+                    [
+                        k
+                        for k, v in settings["indicator_settings"].items()
+                        if v["is_enabled"]
+                    ]
+                )
+                > 0
+            ):
+                if st.session_state.selected_config == "➕ Create New":
+                    db.create_user_config(user_id, config_name, settings)
+                else:
+                    db.update_user_config(user_id, config_name, settings)
+
+                st.session_state.selected_config = config_name
+                st.rerun()
+
+            else:
+                st.error(
+                    "Please enter a screening configuration name and at least one stock ticker symbol."
+                )
+
+        if st.session_state.selected_config != "➕ Create New" and delete_button:
+            db.delete_user_config(user_id, st.session_state.selected_config)
+            # Refresh the saved configurations after deletion
+            # refresh_configs(user_id)
+            st.success(
+                f"Config '{st.session_state.selected_config}' deleted successfully!"
+            )
+            st.session_state.selected_config = "➕ Create New"
+            st.rerun
+
+        if screen_button:
+            if settings["tickers"]:
+                # check if there is any indicators enabled in settings['indicator_settings']
+                if (
+                    len(
+                        [
+                            k
+                            for k, v in settings["indicator_settings"].items()
+                            if v["is_enabled"]
+                        ]
+                    )
+                    == 0
+                ):
+                    st.error("Please enable at least one technical indicator.")
+                    st.stop()
+
+                screen_button_placeholder.empty()
+                stop_screening = screen_button_placeholder.button(
+                    "Stop screening", key="stop_screening"
+                )
+                if stop_screening:
+                    st.rerun()
+
+                st.divider()
+                st.header("Screening Results")
+                progress_bar = st.progress(0)
+                total_tickers = len(settings["tickers"])
+
+                progress_text_placeholder = st.empty()
+                screening_results = pd.DataFrame(columns=["Ticker", "Signals"])
+
+                # Placeholder for the DataFrame that will be updated
+                dataframe_placeholder = st.empty()
+
+                for count, ticker in enumerate(settings["tickers"], start=1):
+                    conditions_met = ie.analyze_stock(ticker, settings)
+                    progress_bar.progress(count / total_tickers)
+                    progress_text_placeholder.info(
+                        f"Screening {count}/{total_tickers} tickers"
+                    )
+
+                    if len(conditions_met) > 0:
+                        # Create a new DataFrame for the new row
+                        new_row = pd.DataFrame(
+                            {
+                                "Ticker": [ticker],
+                                "Signals": [
+                                    ", ".join(
+                                        f"{indicator_name} ({indicator_settings['threshold']})"
+                                        if "threshold" in indicator_settings
+                                        else indicator_name
+                                        for ticker, indicator_name, indicator_settings in conditions_met
+                                    )
+                                ],
+                            }
+                        )
+
+                        # Concatenate the new row with the existing DataFrame
+                        screening_results = pd.concat(
+                            [screening_results, new_row], ignore_index=True
+                        )
+
+                        # Update the DataFrame in the frontend
+                        dataframe_placeholder.dataframe(screening_results, width=1000)
+
+                progress_text_placeholder.success(
+                    f"Completed screening of {count}/{total_tickers} tickers"
+                )
+                progress_bar.empty()
+
+                # recreate screen button after complete
+                screen_button_placeholder.empty()
+                screen_button_placeholder.button("🔎 Screen", key="screen_button")
+
+                if screening_results.empty:
+                    st.warning(
+                        "No signals detected for the selected tickers based on your screening criteria."
+                    )
+            else:
+                st.error("Please select at least one stock ticker symbol.")
