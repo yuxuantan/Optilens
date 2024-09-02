@@ -323,7 +323,7 @@ else:
                 f"Config '{st.session_state.selected_config}' deleted successfully!"
             )
             st.session_state.selected_config = "➕ Create New"
-            st.rerun
+            st.rerun()
 
         if screen_button:
             if settings["tickers"]:
