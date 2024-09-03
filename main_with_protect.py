@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import utils.supabase as db
 import utils.indicator_evaluator as ie
-import streamlit_analytics
+from protect_page import protect_page
 
 # Load S&P 500 tickers
 sp500_df = pd.read_csv("./sp500_companies.csv")
@@ -381,90 +381,174 @@ def get_user_inputs(settings=None):
     return settings
 
 
-with streamlit_analytics.track(unsafe_password="test123"):
-    st.title("Optilens Stock Screener 📈")
-    st.subheader("Find stocks using technical indicators")
+
+def refresh_configs(user_id):
+    user_data = db.fetch_user_data(user_id)
+    st.session_state.configs = {
+        config["config_name"]: config["settings"]
+        for config in user_data.get("configs", {}) or {}
+    }
 
 
-    # Get user inputs
-    settings = get_user_inputs()
-    screen_button_placeholder = st.empty()
-    screen_button = screen_button_placeholder.button("🔎 Screen")
+if "user_id" not in st.query_params:
+    protect_page()
+else:
+    user_id = st.query_params["user_id"]
+    user_data = db.fetch_user_data(user_id)
+    if user_data.get("user") is None:
+        protect_page()
+    else:
+        refresh_configs(user_id)
 
+        st.title("Optilens Stock Screener 📈")
+        st.subheader("Find stocks using technical indicators")
 
-    if screen_button:
-        if settings["tickers"]:
-            # check if there is any indicators enabled in settings['indicator_settings']
+        config_names = list(st.session_state.configs.keys())
+        config_names.insert(0, "➕ Create New")
+
+        # first time only. after that it will be some value no matter what
+        if st.session_state.get("selected_config") is None:
+            st.session_state.selected_config = "➕ Create New"
+
+        # Create the buttons
+        for config_name in config_names:
+            if config_name == "➕ Create New":
+                if st.sidebar.button(config_name, type="primary"):
+                    st.session_state.selected_config = config_name
+                st.sidebar.subheader("Saved Configs")
+            else:
+                if st.sidebar.button(config_name, use_container_width=True):
+                    st.session_state.selected_config = config_name
+
+        if st.session_state.selected_config == "➕ Create New":
+            settings = get_user_inputs()
+            col1, col2, col3 = st.columns(3)
+
+            with col1.popover("💾 Save Configs"):
+                config_name = st.text_input("Name your screening configuration")
+                save_button = st.button("Confirm")
+
+            screen_button_placeholder = col2.empty()
+            screen_button = screen_button_placeholder.button("🔎 Screen")
+        else:
+            settings = get_user_inputs(
+                st.session_state.configs[st.session_state.selected_config]
+            )
+            col1, col2, col3 = st.columns(3)
+            save_button = col1.button("💾 Save Configs")
+            delete_button = col2.button("❌ Delete Filter")
+
+            screen_button_placeholder = col3.empty()
+            screen_button = screen_button_placeholder.button("🔎 Screen")
+
+        if save_button:
             if (
-                len(
+                config_name
+                and settings["tickers"]
+                and len(
                     [
                         k
                         for k, v in settings["indicator_settings"].items()
                         if v["is_enabled"]
                     ]
                 )
-                == 0
+                > 0
             ):
-                st.error("Please enable at least one technical indicator.")
-                st.stop()
+                if st.session_state.selected_config == "➕ Create New":
+                    db.create_user_config(user_id, config_name, settings)
+                else:
+                    db.update_user_config(user_id, config_name, settings)
 
-            screen_button_placeholder.empty()
-            stop_screening = screen_button_placeholder.button(
-                "Stop screening", key="stop_screening"
-            )
-            if stop_screening:
+                st.session_state.selected_config = config_name
                 st.rerun()
 
-            st.divider()
-            st.header("Screening Results")
-            progress_bar = st.progress(0)
-            total_tickers = len(settings["tickers"])
-
-            progress_text_placeholder = st.empty()
-            screening_results = pd.DataFrame(columns=["Ticker"])
-
-            # Placeholder for the DataFrame that will be updated
-            dataframe_placeholder = st.empty()
-
-            for count, ticker in enumerate(settings["tickers"], start=1):
-                result = ie.analyze_stock(ticker, settings)
-                progress_bar.progress(count / total_tickers)
-                progress_text_placeholder.info(
-                    f"Screening {count}/{total_tickers} tickers"
+            else:
+                st.error(
+                    "Please enter a screening configuration name and at least one stock ticker symbol."
                 )
 
-                if result is not None:
-                    # Create a new DataFrame for the new row
-                    new_row = pd.DataFrame(
-                        {
-                            "Ticker": [ticker],
-                            "Dates which fit conditions": [result["common_dates"]],
-                            "Total instances": result["total_instances"],
-                            f"% Chance stock rises {settings["x"]} days later": result["success_rate"],
-                            f"Avg change % {settings["x"]} days later": result["avg_percentage_change"],
-                        }
-                    )
-
-                    # Concatenate the new row with the existing DataFrame
-                    screening_results = pd.concat(
-                        [screening_results, new_row], ignore_index=True
-                    )
-
-                    # Update the DataFrame in the frontend
-                    dataframe_placeholder.dataframe(screening_results, width=1000)
-
-            progress_text_placeholder.success(
-                f"Completed screening of {count}/{total_tickers} tickers"
+        if st.session_state.selected_config != "➕ Create New" and delete_button:
+            db.delete_user_config(user_id, st.session_state.selected_config)
+            # Refresh the saved configurations after deletion
+            st.success(
+                f"Config '{st.session_state.selected_config}' deleted successfully!"
             )
-            progress_bar.empty()
+            st.session_state.selected_config = "➕ Create New"
+            st.rerun()
 
-            # recreate screen button after complete
-            screen_button_placeholder.empty()
-            screen_button_placeholder.button("🔎 Screen", key="screen_button")
+        if screen_button:
+            if settings["tickers"]:
+                # check if there is any indicators enabled in settings['indicator_settings']
+                if (
+                    len(
+                        [
+                            k
+                            for k, v in settings["indicator_settings"].items()
+                            if v["is_enabled"]
+                        ]
+                    )
+                    == 0
+                ):
+                    st.error("Please enable at least one technical indicator.")
+                    st.stop()
 
-            if screening_results.empty:
-                st.warning(
-                    "No signals detected for the selected tickers based on your screening criteria."
+                screen_button_placeholder.empty()
+                stop_screening = screen_button_placeholder.button(
+                    "Stop screening", key="stop_screening"
                 )
-        else:
-            st.error("Please select at least one stock ticker symbol.")
+                if stop_screening:
+                    st.rerun()
+
+                st.divider()
+                st.header("Screening Results")
+                progress_bar = st.progress(0)
+                total_tickers = len(settings["tickers"])
+
+                progress_text_placeholder = st.empty()
+                screening_results = pd.DataFrame(columns=["Ticker"])
+
+                # Placeholder for the DataFrame that will be updated
+                dataframe_placeholder = st.empty()
+
+                for count, ticker in enumerate(settings["tickers"], start=1):
+                    result = ie.analyze_stock(ticker, settings)
+                    progress_bar.progress(count / total_tickers)
+                    progress_text_placeholder.info(
+                        f"Screening {count}/{total_tickers} tickers"
+                    )
+
+                    if result is not None:
+                        # Create a new DataFrame for the new row
+                        new_row = pd.DataFrame(
+                            {
+                                "Ticker": [ticker],
+                                "Dates which fit conditions": [result["common_dates"]],
+                                "Total instances": result["total_instances"],
+                                f"% Chance stock rises {settings["x"]} days later": result["success_rate"],
+                                f"Avg change % {settings["x"]} days later": result["avg_percentage_change"],
+                            }
+                        )
+
+                        # Concatenate the new row with the existing DataFrame
+                        screening_results = pd.concat(
+                            [screening_results, new_row], ignore_index=True
+                        )
+
+                        # Update the DataFrame in the frontend
+                        dataframe_placeholder.dataframe(screening_results, width=1000)
+
+                progress_text_placeholder.success(
+                    f"Completed screening of {count}/{total_tickers} tickers"
+                )
+                progress_bar.empty()
+
+                # recreate screen button after complete
+                screen_button_placeholder.empty()
+                screen_button_placeholder.button("🔎 Screen", key="screen_button")
+
+                if screening_results.empty:
+                    st.warning(
+                        "No signals detected for the selected tickers based on your screening criteria."
+                    )
+            else:
+                st.error("Please select at least one stock ticker symbol.")
