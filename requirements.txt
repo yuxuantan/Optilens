@@ -30,8 +30,15 @@ frozenlist==1.4.1
 getmac==0.9.5
 gitdb==4.0.11
 GitPython==3.1.43
+google-api-core==2.19.2
+google-auth==2.34.0
 google-cloud==0.34.0
+google-cloud-core==2.4.1
+google-cloud-firestore==2.18.0
+googleapis-common-protos==1.65.0
 gotrue==2.7.0
+grpcio==1.66.1
+grpcio-status==1.66.1
 h11==0.14.0
 h2==4.1.0
 hpack==4.0.0
@@ -62,9 +69,11 @@ peewee==3.17.6
 pillow==10.4.0
 platformdirs==4.2.2
 postgrest==0.16.11
+proto-plus==1.24.0
 protobuf==5.27.3
 pyarrow==17.0.0
 pyasn1==0.6.0
+pyasn1_modules==0.4.0
 pycparser==2.22
 pycryptodome==3.20.0
 pydantic==2.8.2
@@ -93,6 +102,7 @@ stomp-py==8.1.2
 storage3==0.7.7
 streamlit==1.37.1
 streamlit-aggrid==1.0.5
+streamlit-analytics==0.4.1
 StrEnum==0.4.15
 supabase==2.7.3
 supafunc==0.5.1
