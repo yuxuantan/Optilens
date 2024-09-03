@@ -387,11 +387,14 @@ with streamlit_analytics.track(unsafe_password="test123"):
     st.subheader("Find stocks using technical indicators")
 
     st.sidebar.subheader("What other features would you like to see on the app?")
-    # st.sidebar.caption("Let us know what other features you would like to see in the app.")
+
     feedback = st.sidebar.text_area("", height=100)
     submit_feedback = st.sidebar.button("Submit")
     if submit_feedback:
         tc.send_message(message="User feedback received: \n" + feedback)
+        st.sidebar.success(f"Feedback '{feedback}' submitted successfully. Thank you for your feedback!")
+    
+
 
     # Get user inputs
     settings = get_user_inputs()
