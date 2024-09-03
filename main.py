@@ -3,14 +3,19 @@ import pandas as pd
 import utils.supabase as db
 import utils.indicator_evaluator as ie
 import streamlit_analytics
+import requests
 import utils.telegram_controller as tc
 
 # Load S&P 500 tickers
 sp500_df = pd.read_csv("./sp500_companies.csv")
 sp500_tickers = sp500_df["Symbol"].tolist()
 
-all_df = pd.read_csv("./Stocks_data.csv")
-all_tickers = all_df["symbol"].tolist()
+# get all tickers by calling api 
+response = requests.get("https://dumbstockapi.com/stock?format=tickers-only&exchange=NYSE,NASDAQ,AMEX")
+if response.status_code == 200:
+    all_tickers = response.json()
+else:
+    all_tickers = []
 
 ticker_selection_options = all_tickers + ["ALL", "S&P 500"]
 
@@ -386,7 +391,7 @@ with streamlit_analytics.track(unsafe_password="test123"):
     st.title("Optilens Stock Screener 📈")
     st.subheader("Find stocks using technical indicators")
 
-    st.sidebar.subheader("What other features would you like to see on the app?")
+    st.sidebar.subheader("Any feedback/ feature requests?")
 
     feedback = st.sidebar.text_area("", height=100)
     submit_feedback = st.sidebar.button("Submit")
