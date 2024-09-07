@@ -2,6 +2,7 @@ import yfinance as yf
 import pandas as pd
 from typing import List, Dict
 import streamlit as st
+from datetime import datetime, timedelta
 
 @st.cache_data(ttl="1d")
 def fetch_stock_data(ticker, period='max', interval='1d') -> pd.DataFrame:
@@ -48,9 +49,23 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
             dates = get_bollinger_band_pullback_dates(ticker, data, config["window"], config["num_std_dev"])
         elif indicator == "volume_spike":
             dates = get_volume_spike_dates(ticker, data, config["window"], config["num_std_dev"])
+        elif indicator == "apex_bull_appear":
+            dates = get_apex_bull_appear_dates(ticker, data)
         
-        # if the latest date does not exist in the data, return None
-        if dates is None or len(dates)==0 or (dates[-1] != data.index[-1]):
+        # If no dates are found, skip this indicator
+        if dates is None or len(dates)==0:
+            return None
+        
+        ## if the latest date does not exist in the data, return None
+        # if (dates[-1] != data.index[-1]):
+        #     return None
+
+        # last indicator appear date
+        last_date_detected = dates[-1]
+        # get the date x trading days ago
+        recency_cutoff_date = data.index[-settings["recency"]]
+        # check the last x dates using index
+        if (last_date_detected < recency_cutoff_date):
             return None
         
         indicator_dates[indicator] = dates
@@ -106,6 +121,58 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     return result
 
 
+@st.cache_data(ttl="1d")
+def get_apex_bull_appear_dates(ticker, data=None):
+    if data is None:
+        data = yf.download(ticker, period='max', interval='1d')
+    # Ensure the Date column is the index and is of datetime type
+    data.index = pd.to_datetime(data.index)
+
+    # Group data into 2-day periods of price movement (2-day chart)
+    grouped = data[['High', 'Low', 'Open', 'Close']].rolling(window=2, min_periods=1).agg({
+        'High': 'max',
+        'Low': 'min',
+        'Open': lambda x: x.iloc[0],
+        'Close': lambda x: x.iloc[-1]
+    })
+    aggregated_data = grouped.shift(-1).iloc[::2]
+
+    # Find dates where the high of the current day is lower than the high of the previous day = Kangaroo wallaby formation
+    condition = (aggregated_data['High'] < aggregated_data['High'].shift(1)) & (aggregated_data['Low'] > aggregated_data['Low'].shift(1))
+    wallaby_dates = aggregated_data.index[condition]
+    
+    # if last wallaby date is more than 7 days ago, return None to cut the processing time because bull appear cannot be today
+    if len(wallaby_dates) > 0 and (datetime.now() - wallaby_dates[-1].to_pydatetime()).days > 7:
+        return None
+
+    bull_appear_dates = []
+    for date in wallaby_dates:
+        # Check the next 4 dates from wallaby date
+        for i in range(1, 5):
+            # get the data for this date, using index to get the data
+            wallaby_pos = aggregated_data.index.get_loc(date)
+            kangaroo_pos = wallaby_pos - 1
+            target_pos = wallaby_pos + i
+            # Ensure the target position is within the DataFrame bounds
+            if target_pos >= len(aggregated_data):
+                break
+            
+            curr_data = aggregated_data.iloc[target_pos]
+            curr_date = aggregated_data.index[target_pos]
+
+            # condition1: low below the low of the kangaroo wallaby, high between the low and high of the kangaroo
+            if curr_data['Low'] < aggregated_data.iloc[kangaroo_pos]['Low'] and curr_data['High'] > aggregated_data.iloc[kangaroo_pos]['Low'] and curr_data['High'] < aggregated_data.iloc[kangaroo_pos]['High']:
+
+                # condition2: must be one of 3 bullish bar
+                # check for bullish pin (open and close both at top 1/3 of bar) # check for bullish ice cream OR bullish flush up (open and close gap is >50% of high and low gap, and close > open)
+                if (
+                    (curr_data['Open']> curr_data['Low'] + 2/3*(curr_data['High'] - curr_data['Low']) and curr_data['Close']> curr_data['Low'] + 2/3*(curr_data['High'] - curr_data['Low']))) or curr_data['Close'] - curr_data['Open'] > 0.5*(curr_data['High'] - curr_data['Low']):
+                    bull_appear_dates.append(curr_date)
+
+    
+    # return bull_appear_dates
+    return pd.DatetimeIndex(bull_appear_dates)
+    
 
 def get_golden_cross_sma_dates(ticker, data=None, short_window=50, long_window=200):
     if data is None:
@@ -122,6 +189,10 @@ def get_golden_cross_sma_dates(ticker, data=None, short_window=50, long_window=2
     return golden_cross_dates
 
 
+if __name__ =="__main__":
+    print(get_apex_bull_appear_dates('NVDA'))
+    # print(get_golden_cross_sma_dates('NVDA'))
+    
 def get_death_cross_sma_dates(ticker, data=None, short_window=50, long_window=200):
     if data is None:
         try:

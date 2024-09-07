@@ -92,7 +92,11 @@ def get_user_inputs(settings=None):
                     "window": 20,
                     "num_std_dev": 2,
                 },
+                "apex_bull_appear": {
+                    "is_enabled": False,
+                }
             },
+            "recency": 1,
             "x": 7
         }
 
@@ -377,10 +381,24 @@ def get_user_inputs(settings=None):
                         ],
                     )
                 )
+        
+        if indicator == "apex_bull_appear":
+            with st.expander("Apex Bull Appear Settings", expanded=False):
+                st.caption(
+                    "Apex Bull Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bullish bar (within up to 4 bars) after the wallaby, breaking from below Kangaroo Low."
+                )
     
+    # recency of data to look at (int)
+    settings["recency"] = st.number_input(
+        "Step 3: Select recency of signal (# trading days) to include in results ",
+        min_value=1,
+        value=settings.get("recency", 1),
+    )
+
+
     # create input for user to select number of days to look forward to calculate success rate and % change
     settings["x"] = st.number_input(
-        "Step 3: Select number of days to look forward for success rate and % change calculation",
+        "Step 3: Select number of trading days to look forward for success rate and % change calculation",
         min_value=1,
         value=settings.get("x", 7),
     )
