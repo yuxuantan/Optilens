@@ -398,7 +398,7 @@ def get_user_inputs(settings=None):
 
     # create input for user to select number of days to look forward to calculate success rate and % change
     settings["x"] = st.number_input(
-        "Step 3: Select number of trading days to look forward for success rate and % change calculation",
+        "Step 4: Select number of trading days to look forward for success rate and % change calculation",
         min_value=1,
         value=settings.get("x", 7),
     )
