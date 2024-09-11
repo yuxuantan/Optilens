@@ -3,7 +3,6 @@ import pandas as pd
 import utils.supabase as db
 import utils.indicator_evaluator as ie
 import streamlit_analytics
-import requests
 import utils.telegram_controller as tc
 import utils.ticker_getter as tg
 
@@ -20,7 +19,7 @@ def ticker_input(key="ticker_input", default=None):
         options=ticker_selection_options,
         key=key,
         default=default,
-        placeholder="Select 'ALL' to include all tickers. Select 'S&P 500' to include all S&P 500 tickers.",
+        placeholder="'ALL', 'S&P 500', 'Dow Jones' or add individual stock tickers",
     )
     return selected_tickers
 
@@ -31,6 +30,15 @@ def get_user_inputs(settings=None):
         settings = {
             "tickers": [],
             "indicator_settings": {
+                "apex_uptrend": {
+                    "is_enabled": False,
+                },
+                "apex_bull_appear": {
+                    "is_enabled": False,
+                },
+                "apex_bear_appear": {
+                    "is_enabled": False,
+                },
                 "golden_cross": {
                     "is_enabled": False,
                     "short_sma": 50,
@@ -86,9 +94,6 @@ def get_user_inputs(settings=None):
                     "window": 20,
                     "num_std_dev": 2,
                 },
-                "apex_bull_appear": {
-                    "is_enabled": False,
-                }
             },
             "recency": 1,
             "x": 7
@@ -115,6 +120,21 @@ def get_user_inputs(settings=None):
 
     for indicator in selected_indicators:
         settings["indicator_settings"][indicator]["is_enabled"] = True
+        if indicator == "apex_uptrend":
+            with st.expander("Apex Uptrend Settings", expanded=False):
+                st.caption(
+                    "Apex Uptrend is a signal that occurs when there is a series of higher highs and higher lows, forming an uptrend."
+                )
+        if indicator == "apex_bull_appear":
+            with st.expander("Apex Bull Appear Settings", expanded=False):
+                st.caption(
+                    "Apex Bull Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bullish bar (within up to 4 bars) after the wallaby, breaking from below Kangaroo Low, back into Kangaroo's price range."
+                )
+        if indicator == "apex_bear_appear":
+            with st.expander("Apex Bear Appear Settings", expanded=False):
+                st.caption(
+                    "Apex Bear Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bearish bar (within up to 4 bars) after the wallaby, breaking from above Kangaroo High back into Kangaroo's price range."
+                )
 
         if indicator == "golden_cross":
             with st.expander("Golden Cross Settings", expanded=False):
@@ -376,12 +396,6 @@ def get_user_inputs(settings=None):
                             "num_std_dev"
                         ],
                     )
-                )
-        
-        if indicator == "apex_bull_appear":
-            with st.expander("Apex Bull Appear Settings", expanded=False):
-                st.caption(
-                    "Apex Bull Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bullish bar (within up to 4 bars) after the wallaby, breaking from below Kangaroo Low."
                 )
     
     # recency of data to look at (int)

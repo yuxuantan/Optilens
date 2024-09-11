@@ -1,22 +1,14 @@
-import yfinance as yf
 import pandas as pd
 from typing import List, Dict
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime
+import utils.ticker_getter as tg
 
-@st.cache_data(ttl="1d")
-def fetch_stock_data(ticker, period='max', interval='1d') -> pd.DataFrame:
-    try:
-        data = yf.download(ticker, period=period, interval=interval)
-        return data
-    except Exception as e:
-        print(f"Failed to fetch data for {ticker}")
-        return None
 
 def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     """Analyze a stock and return notifications based on user preferences."""
-    
-    data = fetch_stock_data(ticker, period='max', interval='1d')
+    print(ticker)
+    data = tg.fetch_stock_data(ticker, period='max', interval='1d')
     
     # Filter out indicator settings with is_enabled = False
     enabled_settings = {k: v for k, v in settings["indicator_settings"].items() if v["is_enabled"]}
@@ -25,35 +17,41 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     indicator_dates = {}
 
     # get the date x trading days before last day in stock data
-    recency_cutoff_date = data.index[-min(settings["recency"], len(data.index)-1)]
+    recency_cutoff_date = None
+    if len(data.index) > 0:
+        recency_cutoff_date = data.index[-min(settings["recency"], len(data.index)-1)]
 
     # Check enabled indicators and get the dates where the condition is met
     for indicator, config in enabled_settings.items():
         dates = None
         if indicator == "golden_cross_sma":
-            dates = get_golden_cross_sma_dates(ticker, data, config["short_sma"], config["long_sma"])
+            dates = get_golden_cross_sma_dates(data, config["short_sma"], config["long_sma"])
         elif indicator == "death_cross_sma":
-            dates = get_death_cross_sma_dates(ticker, data, config["short_sma"], config["long_sma"])
+            dates = get_death_cross_sma_dates(data, config["short_sma"], config["long_sma"])
         elif indicator == "rsi_overbought":
-            dates = get_rsi_overbought_dates(ticker, data, config["threshold"])
+            dates = get_rsi_overbought_dates(data, config["threshold"])
         elif indicator == "rsi_oversold":
-            dates = get_rsi_oversold_dates(ticker, data, config["threshold"])
+            dates = get_rsi_oversold_dates(data, config["threshold"])
         elif indicator == "macd_bullish":
-            dates = get_macd_bullish_dates(ticker, data, config["short_ema"], config["long_ema"], config["signal_window"])
+            dates = get_macd_bullish_dates(data, config["short_ema"], config["long_ema"], config["signal_window"])
         elif indicator == "macd_bearish":
-            dates = get_macd_bearish_dates(ticker, data, config["short_ema"], config["long_ema"], config["signal_window"])
+            dates = get_macd_bearish_dates(data, config["short_ema"], config["long_ema"], config["signal_window"])
         elif indicator == "bollinger_squeeze":
-            dates = get_bollinger_band_squeeze_dates(ticker, data, config["window"], config["num_std_dev"])
+            dates = get_bollinger_band_squeeze_dates(data, config["window"], config["num_std_dev"])
         elif indicator == "bollinger_expansion":
-            dates = get_bollinger_band_expansion_dates(ticker, data, config["window"], config["num_std_dev"])
+            dates = get_bollinger_band_expansion_dates(data, config["window"], config["num_std_dev"])
         elif indicator == "bollinger_breakout":
-            dates = get_bollinger_band_breakout_dates(ticker, data, config["window"], config["num_std_dev"])
+            dates = get_bollinger_band_breakout_dates(data, config["window"], config["num_std_dev"])
         elif indicator == "bollinger_pullback":
-            dates = get_bollinger_band_pullback_dates(ticker, data, config["window"], config["num_std_dev"])
+            dates = get_bollinger_band_pullback_dates(data, config["window"], config["num_std_dev"])
         elif indicator == "volume_spike":
-            dates = get_volume_spike_dates(ticker, data, config["window"], config["num_std_dev"])
+            dates = get_volume_spike_dates(data, config["window"], config["num_std_dev"])
         elif indicator == "apex_bull_appear":
-            dates = get_apex_bull_appear_dates(ticker, data)
+            dates = get_apex_bull_appear_dates(data)
+        elif indicator == "apex_bear_appear":
+            dates = get_apex_bear_appear_dates(data)
+        elif indicator == "apex_uptrend":
+            dates = get_uptrend_formation_dates(data)
         
         # If no dates are found, skip this indicator
         if dates is None or len(dates)==0:
@@ -127,10 +125,28 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
 
     return result
 
-def get_bear_traps(ticker, data=None):
+
+def get_2day_aggregated_data(data):
+    # Ensure the Date column is the index and is of datetime type
+    data.index = pd.to_datetime(data.index)
+
+    # if there is odd number of data points, drop the first row in the aggregate calculation
+    if len(data) % 2 == 1:
+        data = data.iloc[1:]
+
+    # Group data into 2-day periods of price movement (2-day chart)
+    grouped = data[['High', 'Low', 'Open', 'Close']].rolling(window=2, min_periods=1).agg({
+        'High': 'max',
+        'Low': 'min',
+        'Open': lambda x: x.iloc[0],
+        'Close': lambda x: x.iloc[-1]
+    })
+    aggregated_data = grouped.shift(-1).iloc[::2]
+    return aggregated_data
+
+
+def get_bear_traps(data):
     # get all bear trap dates and values = u or v shape, where T-1 low > T low < T+1 low. Identify T
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
     
     bear_trap_dates = []
     for i in range(1, len(data)-1):
@@ -143,41 +159,104 @@ def get_bear_traps(ticker, data=None):
 
 
 
+@st.cache_data(ttl="1d")
+def get_uptrend_formation_dates(data):
+    data['SMA_50'] = data['Close'].rolling(window=50).mean()
+    data['SMA_200'] = data['Close'].rolling(window=200).mean()
+
+    agg_data = get_2day_aggregated_data(data)
+
+    high_inflexion_points = []
+    low_inflexion_points = []
+    for i in range(1, len(agg_data)-1):
+        if (agg_data['High'][i-1] < agg_data['High'][i] > agg_data['High'][i+1]):
+            high_inflexion_points.append(agg_data.index[i])
+        elif (agg_data['Low'][i-1] > agg_data['Low'][i] < agg_data['Low'][i+1]):
+            low_inflexion_points.append(agg_data.index[i])
+
+    inflexion_points = sorted(high_inflexion_points + low_inflexion_points)
+    inflexion_data = agg_data.loc[inflexion_points, ['High', 'Low']]
+    inflexion_data = pd.DataFrame(inflexion_data)
+
+    
+    uptrend_dates = []
+
+    # TODO: Note that uptrend formation must form above sma50 line & sma200. 
+
+    # LIGHTNING formation check
+    for inflexion_point in high_inflexion_points:
+        # get index of inflexion point
+        inflexion_point_pos = inflexion_data.index.get_loc(inflexion_point)
+        # if inflexion point is one of the last 4 datapoints, skip
+        if inflexion_point_pos >= len(inflexion_data)-4:
+            break
+
+        # Get price of first inflexion point
+        point_a = inflexion_data.iloc[inflexion_point_pos]
+        point_b = inflexion_data.iloc[inflexion_point_pos+1]
+        point_c = inflexion_data.iloc[inflexion_point_pos+2]
+        point_d = inflexion_data.iloc[inflexion_point_pos+3]
+
+        # Check for lightning. must start with high inflexion point, C must be lower than A ,   D must be lower than B and cross back to B (assume it just have to reverse in the direction, but havent reach B)
+        if point_c['High'] < point_a['High'] and point_d['Low'] < point_b['Low']:
+            # Check if all points are above sma50 and sma200
+            if(point_a['Low'] < data.loc[point_a.name, 'SMA_50']) or (point_a['Low'] < data.loc[point_a.name, 'SMA_200']) or (point_b['Low'] < data.loc[point_b.name, 'SMA_50']) or (point_b['Low'] < data.loc[point_b.name, 'SMA_200']) or (point_c['Low'] < data.loc[point_c.name, 'SMA_50']) or (point_c['Low'] < data.loc[point_c.name, 'SMA_200']) or (point_d['Low'] < data.loc[point_d.name, 'SMA_50']) or (point_d['Low'] < data.loc[point_d.name, 'SMA_200']):
+                break
+
+            # add all the dateindex of 4 inflexion points abcd
+            uptrend_dates.append(inflexion_data.index[inflexion_point_pos+3])
+            print(['Lightning formation', inflexion_point, inflexion_data.index[inflexion_point_pos+1], inflexion_data.index[inflexion_point_pos+2], inflexion_data.index[inflexion_point_pos+3]])
+
+    # M formation check: D must be higher than  B and cross back to C to reach E (above A)
+    for inflexion_point in low_inflexion_points:
+        # get index of inflexion point
+        inflexion_point_pos = inflexion_data.index.get_loc(inflexion_point)
+        # if inflexion point is one of the last 5 datapoints, skip
+        if inflexion_point_pos >= len(inflexion_data)-5:
+            break
+
+        # Get price of first inflexion point
+        point_a = inflexion_data.iloc[inflexion_point_pos]
+        point_b = inflexion_data.iloc[inflexion_point_pos+1]
+        point_c = inflexion_data.iloc[inflexion_point_pos+2]
+        point_d = inflexion_data.iloc[inflexion_point_pos+3]
+        point_e = inflexion_data.iloc[inflexion_point_pos+4]
+        
+
+        # Check for M formation. must start with low inflexion point, D must be higher than B, and cross back to C to reach E (above A)
+        if point_d['High'] > point_b['High'] and point_c['Low'] > point_e['Low'] > point_a['Low'] :
+            # Check if all points are above sma50 and sma200
+            if(point_a['Low'] < data.loc[point_a.name, 'SMA_50']) or (point_a['Low'] < data.loc[point_a.name, 'SMA_200']) or (point_b['Low'] < data.loc[point_b.name, 'SMA_50']) or (point_b['Low'] < data.loc[point_b.name, 'SMA_200']) or (point_c['Low'] < data.loc[point_c.name, 'SMA_50']) or (point_c['Low'] < data.loc[point_c.name, 'SMA_200']) or (point_d['Low'] < data.loc[point_d.name, 'SMA_50']) or (point_d['Low'] < data.loc[point_d.name, 'SMA_200']) or (point_e['Low'] < data.loc[point_e.name, 'SMA_50']) or (point_e['Low'] < data.loc[point_e.name, 'SMA_200']):
+                break
+            # add all the dateindex of 4 inflexion points abcd
+            uptrend_dates.append(inflexion_data.index[inflexion_point_pos+3])
+            print(['M formation',inflexion_point, inflexion_data.index[inflexion_point_pos+1], inflexion_data.index[inflexion_point_pos+2], inflexion_data.index[inflexion_point_pos+3]])
+
+
+    return uptrend_dates
+
+    
 if __name__ =="__main__":
-    print(len(get_bear_traps('NVDA')))
-    # print(get_golden_cross_sma_dates('NVDA'))
+    get_uptrend_formation_dates()
 
 @st.cache_data(ttl="1d")
-def get_apex_bull_appear_dates(ticker, data=None):
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
-    # Ensure the Date column is the index and is of datetime type
-    data.index = pd.to_datetime(data.index)
-
-    # Group data into 2-day periods of price movement (2-day chart)
-    grouped = data[['High', 'Low', 'Open', 'Close']].rolling(window=2, min_periods=1).agg({
-        'High': 'max',
-        'Low': 'min',
-        'Open': lambda x: x.iloc[0],
-        'Close': lambda x: x.iloc[-1]
-    })
-    aggregated_data = grouped.shift(-1).iloc[::2]
+def get_apex_bull_appear_dates(data):
+    
+    aggregated_data = get_2day_aggregated_data(data)
 
     # Find dates where the high of the current day is lower than the high of the previous day = Kangaroo wallaby formation
     condition = (aggregated_data['High'] < aggregated_data['High'].shift(1)) & (aggregated_data['Low'] > aggregated_data['Low'].shift(1))
     wallaby_dates = aggregated_data.index[condition]
-    
+    print("wallaby_dates: "+str(wallaby_dates))
     # if last wallaby date is more than 7 days ago, return None to cut the processing time because bull appear cannot be today
     if len(wallaby_dates) > 0 and (datetime.now() - wallaby_dates[-1].to_pydatetime()).days > 7:
         return None
     
-    # check the MIN price of bear trap that has not taken the money yet. it has to be between the low and high of the kangaroo
-
-
+    # TODO: check the MIN price of bear trap that has not taken the money yet. it has to be between the low and high of the kangaroo
 
     bull_appear_dates = []
     for date in wallaby_dates:
-        # Check the next 4 dates from wallaby date
+        # Check the next 4 trading dates from wallaby date
         for i in range(1, 5):
             # get the data for this date, using index to get the data
             wallaby_pos = aggregated_data.index.get_loc(date)
@@ -198,15 +277,58 @@ def get_apex_bull_appear_dates(ticker, data=None):
                 if (
                     (curr_data['Open']> curr_data['Low'] + 2/3*(curr_data['High'] - curr_data['Low']) and curr_data['Close']> curr_data['Low'] + 2/3*(curr_data['High'] - curr_data['Low']))) or curr_data['Close'] - curr_data['Open'] > 0.5*(curr_data['High'] - curr_data['Low']):
                     bull_appear_dates.append(curr_date)
+                    print(f"Wallaby date: {date}; Bull appear date: {curr_date}")
 
     
     # return bull_appear_dates
     return pd.DatetimeIndex(bull_appear_dates)
     
+@st.cache_data(ttl="1d")
+def get_apex_bear_appear_dates(data):
+    
+    aggregated_data = get_2day_aggregated_data(data)
 
-def get_golden_cross_sma_dates(ticker, data=None, short_window=50, long_window=200):
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
+    # Find dates where the high of the current day is lower than the high of the previous day = Kangaroo wallaby formation
+    condition = (aggregated_data['High'] < aggregated_data['High'].shift(1)) & (aggregated_data['Low'] > aggregated_data['Low'].shift(1))
+    wallaby_dates = aggregated_data.index[condition]
+    print("wallaby_dates: "+str(wallaby_dates))
+    # if last wallaby date is more than 7 days ago, return None to cut the processing time because bull appear cannot be today
+    if len(wallaby_dates) > 0 and (datetime.now() - wallaby_dates[-1].to_pydatetime()).days > 7:
+        return None
+    
+    # TODO: check the MIN price of bull trap that has not taken the money yet. it has to be between the low and high of the kangaroo
+
+    bear_appear_dates = []
+    for date in wallaby_dates:
+        # Check the next 4 trading dates from wallaby date
+        for i in range(1, 5):
+            # get the data for this date, using index to get the data
+            wallaby_pos = aggregated_data.index.get_loc(date)
+            kangaroo_pos = wallaby_pos - 1
+            target_pos = wallaby_pos + i
+            # Ensure the target position is within the DataFrame bounds
+            if target_pos >= len(aggregated_data):
+                break
+            
+            curr_data = aggregated_data.iloc[target_pos]
+            curr_date = aggregated_data.index[target_pos]
+
+            # condition1: high above the high of the kangaroo wallaby, close between the low and high of the kangaroo
+            if curr_data['High'] > aggregated_data.iloc[kangaroo_pos]['High'] and curr_data['Close'] > aggregated_data.iloc[kangaroo_pos]['Low'] and curr_data['Close'] < aggregated_data.iloc[kangaroo_pos]['High']:
+
+                # condition2: must be one of 3 bearish bar
+                # check for bearish pin (open and close both at bottom 1/3 of bar) # check for bearish ice cream OR bearish flush down (open and close gap is >50% of high and low gap, and open > close)
+                if (
+                    (curr_data['Open']> curr_data['Low'] + 1/3*(curr_data['High'] - curr_data['Low']) and curr_data['Close']> curr_data['Low'] + 1/3*(curr_data['High'] - curr_data['Low']))) or curr_data['Open'] - curr_data['Close'] > 0.5*(curr_data['High'] - curr_data['Low']):
+                    bear_appear_dates.append(curr_date)
+                    print(f"Wallaby date: {date}; Bear appear date: {curr_date}")
+
+    
+    # return bull_appear_dates
+    return pd.DatetimeIndex(bear_appear_dates)
+
+
+def get_golden_cross_sma_dates(data, short_window=50, long_window=200):
 
     data[f'SMA_{short_window}'] = data['Close'].rolling(window=short_window).mean()
     data[f'SMA_{long_window}'] = data['Close'].rolling(window=long_window).mean()
@@ -220,12 +342,7 @@ def get_golden_cross_sma_dates(ticker, data=None, short_window=50, long_window=2
 
 
     
-def get_death_cross_sma_dates(ticker, data=None, short_window=50, long_window=200):
-    if data is None:
-        try:
-            data = yf.download(ticker, period='1y', interval='1d')
-        except:
-            data = yf.download(ticker, period='max', interval='1d')
+def get_death_cross_sma_dates(data, short_window=50, long_window=200):
     
     data[f'SMA_{short_window}'] = data['Close'].rolling(window=short_window).mean()
     data[f'SMA_{long_window}'] = data['Close'].rolling(window=long_window).mean()
@@ -238,13 +355,7 @@ def get_death_cross_sma_dates(ticker, data=None, short_window=50, long_window=20
     return death_cross_dates
     
 
-def get_rsi_overbought_dates(ticker, data=None, threshold=70):
-    if data is None:
-        try:
-            data = yf.download(ticker, period='1y', interval='1d')
-        except:
-            data = yf.download(ticker, period='max', interval='1d')
-    
+def get_rsi_overbought_dates(data, threshold=70):
     delta = data['Close'].diff()
     gain = delta.where(delta > 0, 0)
     loss = -delta.where(delta < 0, 0)
@@ -259,10 +370,7 @@ def get_rsi_overbought_dates(ticker, data=None, threshold=70):
 
     return overbought_dates
 
-def get_rsi_oversold_dates(ticker, data=None, threshold=30):
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
-    
+def get_rsi_oversold_dates(data, threshold=30):
     delta = data['Close'].diff()
     gain = delta.where(delta > 0, 0)
     loss = -delta.where(delta < 0, 0)
@@ -276,10 +384,7 @@ def get_rsi_oversold_dates(ticker, data=None, threshold=30):
     return oversold_dates
 
 
-def get_macd_bullish_dates(ticker, data=None, short_window=12, long_window=26, signal_window=9):
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
-    
+def get_macd_bullish_dates(data, short_window=12, long_window=26, signal_window=9):
     data['Short_EMA'] = data['Close'].ewm(span=short_window, adjust=False).mean()
     data['Long_EMA'] = data['Close'].ewm(span=long_window, adjust=False).mean()
     data['MACD'] = data['Short_EMA'] - data['Long_EMA']
@@ -289,13 +394,7 @@ def get_macd_bullish_dates(ticker, data=None, short_window=12, long_window=26, s
     bullish_dates = bullish[bullish].index
     return bullish_dates
 
-def get_macd_bearish_dates(ticker, data=None, short_window=12, long_window=26, signal_window=9):
-    if data is None:
-        try:
-            data = yf.download(ticker, period='1y', interval='1d')
-        except:
-            data = yf.download(ticker, period='max', interval='1d')
-    
+def get_macd_bearish_dates(data, short_window=12, long_window=26, signal_window=9):
     data['Short_EMA'] = data['Close'].ewm(span=short_window, adjust=False).mean()
     data['Long_EMA'] = data['Close'].ewm(span=long_window, adjust=False).mean()
     data['MACD'] = data['Short_EMA'] - data['Long_EMA']
@@ -305,10 +404,7 @@ def get_macd_bearish_dates(ticker, data=None, short_window=12, long_window=26, s
     bearish_dates = bearish[bearish].index
     return bearish_dates
 
-def get_bollinger_band_squeeze_dates(ticker, data=None, window=20, num_std_dev=2):
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
-    
+def get_bollinger_band_squeeze_dates(data, window=20, num_std_dev=2):
     data['Middle_Band'] = data['Close'].rolling(window=window).mean()
     data['Upper_Band'] = data['Middle_Band'] + num_std_dev * data['Close'].rolling(window=window).std()
     data['Lower_Band'] = data['Middle_Band'] - num_std_dev * data['Close'].rolling(window=window).std()
@@ -317,10 +413,7 @@ def get_bollinger_band_squeeze_dates(ticker, data=None, window=20, num_std_dev=2
     squeeze_dates = squeeze[squeeze].index
     return squeeze_dates
 
-def get_bollinger_band_expansion_dates(ticker, data=None, window=20, num_std_dev=2):
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
-    
+def get_bollinger_band_expansion_dates(data, window=20, num_std_dev=2):
     data['Middle_Band'] = data['Close'].rolling(window=window).mean()
     data['Upper_Band'] = data['Middle_Band'] + num_std_dev * data['Close'].rolling(window=window).std()
     data['Lower_Band'] = data['Middle_Band'] - num_std_dev * data['Close'].rolling(window=window).std()
@@ -329,10 +422,7 @@ def get_bollinger_band_expansion_dates(ticker, data=None, window=20, num_std_dev
     expansion_dates = expansion[expansion].index
     return expansion_dates
 
-def get_bollinger_band_breakout_dates(ticker, data=None, window=20, num_std_dev=2):
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
-    
+def get_bollinger_band_breakout_dates(data, window=20, num_std_dev=2):
     data['Middle_Band'] = data['Close'].rolling(window=window).mean()
     data['Upper_Band'] = data['Middle_Band'] + num_std_dev * data['Close'].rolling(window=window).std()
     data['Lower_Band'] = data['Middle_Band'] - num_std_dev * data['Close'].rolling(window=window).std()
@@ -341,10 +431,7 @@ def get_bollinger_band_breakout_dates(ticker, data=None, window=20, num_std_dev=
     breakout_dates = breakout[breakout].index
     return breakout_dates
 
-def get_bollinger_band_pullback_dates(ticker, data=None, window=20, num_std_dev=2):
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
-    
+def get_bollinger_band_pullback_dates(data, window=20, num_std_dev=2):
     data['Middle_Band'] = data['Close'].rolling(window=window).mean()
     data['Upper_Band'] = data['Middle_Band'] + num_std_dev * data['Close'].rolling(window=window).std()
     data['Lower_Band'] = data['Middle_Band'] - num_std_dev * data['Close'].rolling(window=window).std()
@@ -353,10 +440,7 @@ def get_bollinger_band_pullback_dates(ticker, data=None, window=20, num_std_dev=
     pullback_dates = pullback[pullback].index
     return pullback_dates
 
-def get_volume_spike_dates(ticker, data=None, window=20, num_std_dev=2):
-    if data is None:
-        data = yf.download(ticker, period='max', interval='1d')
-    
+def get_volume_spike_dates(data, window=20, num_std_dev=2):
     data['Volume_MA'] = data['Volume'].rolling(window=window).mean()
     data['Volume_MA_std'] = data['Volume'].rolling(window=window).std()
     
