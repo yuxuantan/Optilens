@@ -5,19 +5,13 @@ import utils.indicator_evaluator as ie
 import streamlit_analytics
 import requests
 import utils.telegram_controller as tc
+import utils.ticker_getter as tg
 
-# Load S&P 500 tickers
-sp500_df = pd.read_csv("./sp500_companies.csv")
-sp500_tickers = sp500_df["Symbol"].tolist()
+dow_jones_tickers = tg.get_dow_jones()
+sp500_tickers = tg.get_snp_500()
+all_tickers = tg.get_all_tickers()
 
-# get all tickers by calling api 
-response = requests.get("https://dumbstockapi.com/stock?format=tickers-only&exchange=NYSE,NASDAQ,AMEX")
-if response.status_code == 200:
-    all_tickers = response.json()
-else:
-    all_tickers = []
-
-ticker_selection_options = all_tickers + ["ALL", "S&P 500"]
+ticker_selection_options = all_tickers + ["ALL", "S&P 500", "Dow Jones"]
 
 # Function to display ticker input with autocomplete and multi-select
 def ticker_input(key="ticker_input", default=None):
@@ -107,6 +101,8 @@ def get_user_inputs(settings=None):
         settings["tickers"] = all_tickers  # Select all tickers if "ALL" is chosen
     if "S&P 500" in settings["tickers"]:
         settings["tickers"] = sp500_tickers
+    if "Dow Jones" in settings["tickers"]:
+        settings["tickers"] = dow_jones_tickers
 
     # Dropdown for selecting indicators
     selected_indicators = st.multiselect(

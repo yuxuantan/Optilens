@@ -24,6 +24,9 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     # Store dates where each indicator's condition is met
     indicator_dates = {}
 
+    # get the date x trading days before last day in stock data
+    recency_cutoff_date = data.index[-min(settings["recency"], len(data.index)-1)]
+
     # Check enabled indicators and get the dates where the condition is met
     for indicator, config in enabled_settings.items():
         dates = None
@@ -62,8 +65,7 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
 
         # last indicator appear date
         last_date_detected = dates[-1]
-        # get the date x trading days ago
-        recency_cutoff_date = data.index[-settings["recency"]]
+        
         # check the last x dates using index
         if (last_date_detected < recency_cutoff_date):
             return None
@@ -78,35 +80,40 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     
     common_dates = sorted(common_dates)  # Sort dates for clarity
 
-    # Calculate the success rate based on provided logic
+    
     success_count = 0
-    for date in common_dates:
-        if (date + pd.Timedelta(days=settings["x"])) in data.index and data.loc[date + pd.Timedelta(days=settings["x"]), 'Close'] > data.loc[date, 'Close']:
-            success_count += 1
-
-    total_instances = len(common_dates)
-    success_rate = (success_count / total_instances * 100) if total_instances > 0 else 0
-
-   # Calculate the average percentage change
+    
     avg_percentage_change = 0
     valid_count = 0  # To keep track of how many valid instances we have
 
     for date in common_dates:
-        future_date = date + pd.Timedelta(days=settings["x"])
+        index_of_date = data.index.get_loc(date)
+
+        if index_of_date + settings["x"] >= len(data.index):
+            continue
+
+        target_date_for_metric_calculation = data.index[index_of_date + settings["x"]]
+        # Calculate the success rate based on provided logic
+        if (target_date_for_metric_calculation) in data.index and data.loc[target_date_for_metric_calculation, 'Close'] > data.loc[date, 'Close']:
+            success_count += 1
         
-        if date in data.index and future_date in data.index:
+        # Calculate the average percentage change
+        if date in data.index and target_date_for_metric_calculation in data.index:
             try:
                 current_close = data.loc[date, 'Close']
-                future_close = data.loc[future_date, 'Close']
+                future_close = data.loc[target_date_for_metric_calculation, 'Close']
                 percentage_change = (future_close - current_close) / current_close * 100
                 avg_percentage_change += percentage_change
                 valid_count += 1
             except KeyError:
                 # Handle the case where 'Close' might not be in the DataFrame (unlikely but for completeness)
-                print(f"Missing 'Close' price for date: {date} or {future_date}")
+                print(f"Missing 'Close' price for date: {date} or {target_date_for_metric_calculation}")
         else:
-            print(f"Date {date} or {future_date} is not in the DataFrame")
+            print(f"Date {date} or {target_date_for_metric_calculation} is not in the DataFrame")
 
+    total_instances = len(common_dates)
+    success_rate = (success_count / total_instances * 100) if total_instances > 0 else 0
+        
     # Calculate the average percentage change if there are valid instances
     avg_percentage_change = avg_percentage_change / valid_count if valid_count > 0 else 0
 
@@ -120,6 +127,25 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
 
     return result
 
+def get_bear_traps(ticker, data=None):
+    # get all bear trap dates and values = u or v shape, where T-1 low > T low < T+1 low. Identify T
+    if data is None:
+        data = yf.download(ticker, period='max', interval='1d')
+    
+    bear_trap_dates = []
+    for i in range(1, len(data)-1):
+        if data['Low'][i-1] > data['Low'][i] and data['Low'][i] < data['Low'][i+1]:
+            bear_trap_dates.append(data.index[i])
+    
+    # get bear traps that are still valid. 
+    return bear_trap_dates
+    # if no bear trap
+
+
+
+if __name__ =="__main__":
+    print(len(get_bear_traps('NVDA')))
+    # print(get_golden_cross_sma_dates('NVDA'))
 
 @st.cache_data(ttl="1d")
 def get_apex_bull_appear_dates(ticker, data=None):
@@ -144,6 +170,10 @@ def get_apex_bull_appear_dates(ticker, data=None):
     # if last wallaby date is more than 7 days ago, return None to cut the processing time because bull appear cannot be today
     if len(wallaby_dates) > 0 and (datetime.now() - wallaby_dates[-1].to_pydatetime()).days > 7:
         return None
+    
+    # check the MIN price of bear trap that has not taken the money yet. it has to be between the low and high of the kangaroo
+
+
 
     bull_appear_dates = []
     for date in wallaby_dates:
@@ -160,8 +190,8 @@ def get_apex_bull_appear_dates(ticker, data=None):
             curr_data = aggregated_data.iloc[target_pos]
             curr_date = aggregated_data.index[target_pos]
 
-            # condition1: low below the low of the kangaroo wallaby, high between the low and high of the kangaroo
-            if curr_data['Low'] < aggregated_data.iloc[kangaroo_pos]['Low'] and curr_data['High'] > aggregated_data.iloc[kangaroo_pos]['Low'] and curr_data['High'] < aggregated_data.iloc[kangaroo_pos]['High']:
+            # condition1: low below the low of the kangaroo wallaby, close between the low and high of the kangaroo
+            if curr_data['Low'] < aggregated_data.iloc[kangaroo_pos]['Low'] and curr_data['Close'] > aggregated_data.iloc[kangaroo_pos]['Low'] and curr_data['Close'] < aggregated_data.iloc[kangaroo_pos]['High']:
 
                 # condition2: must be one of 3 bullish bar
                 # check for bullish pin (open and close both at top 1/3 of bar) # check for bullish ice cream OR bullish flush up (open and close gap is >50% of high and low gap, and close > open)
@@ -189,9 +219,6 @@ def get_golden_cross_sma_dates(ticker, data=None, short_window=50, long_window=2
     return golden_cross_dates
 
 
-if __name__ =="__main__":
-    print(get_apex_bull_appear_dates('NVDA'))
-    # print(get_golden_cross_sma_dates('NVDA'))
     
 def get_death_cross_sma_dates(ticker, data=None, short_window=50, long_window=200):
     if data is None:
