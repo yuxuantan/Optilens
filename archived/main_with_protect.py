@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import utils.supabase as db
 import utils.indicator_evaluator as ie
-from protect_page import protect_page
+from archived.protect_page import protect_page
 
 # Load S&P 500 tickers
 sp500_df = pd.read_csv("./sp500_companies.csv")
