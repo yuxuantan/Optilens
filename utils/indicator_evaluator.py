@@ -3,7 +3,7 @@ from typing import List, Dict
 import streamlit as st
 from datetime import datetime
 import utils.ticker_getter as tg
-
+from utils.indicator_utils import (get_2day_aggregated_data, get_high_inflexion_points, get_low_inflexion_points, find_lowest_bear_trap_within_price_range, find_bear_traps, find_bull_traps)
 
 def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     """Analyze a stock and return notifications based on user preferences."""
@@ -155,98 +155,7 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
 
     return result
 
-
-def get_2day_aggregated_data(data):
-    # Ensure the Date column is the index and is of datetime type
-    data.index = pd.to_datetime(data.index)
-
-    # if there is odd number of data points, drop the first row in the aggregate calculation
-    if len(data) % 2 == 1:
-        data = data.iloc[1:]
-
-    # Group data into 2-day periods of price movement (2-day chart)
-    grouped = (
-        data[["High", "Low", "Open", "Close"]]
-        .rolling(window=2, min_periods=1)
-        .agg(
-            {
-                "High": "max",
-                "Low": "min",
-                "Open": lambda x: x.iloc[0],
-                "Close": lambda x: x.iloc[-1],
-            }
-        )
-    )
-    aggregated_data = grouped.shift(-1).iloc[::2]
-    return aggregated_data
-
-
-# pass data before kangaroo -1 inside. it cannot take the money of past bear traps
-def get_low_inflexion_points(data):
-    # get all bear trap dates and values = u or v shape, where T-1 low > T low < T+1 low. Identify T
-    all_low_inflexion_points = []
-    for i in range(2, len(data) - 2):
-        if (
-            data["Low"][i - 1] > data["Low"][i] and data["Low"][i] < data["Low"][i + 1]
-        ) and (
-            data["Low"][i - 2] > data["Low"][i] and data["Low"][i] < data["Low"][i + 2]
-        ):
-            all_low_inflexion_points.append((data.index[i], data["Low"][i]))
-    return all_low_inflexion_points
-
-
-def get_high_inflexion_points(data):
-    all_high_inflexion_points = []
-    for i in range(1, len(data) - 2):
-        if (
-            (data["High"][i - 1] < data["High"][i] and data["High"][i] > data["High"][i + 1])
-            and 
-            (data["High"][i - 2] < data["High"][i] and data["High"][i] > data["High"][i + 2])
-        ):
-            all_high_inflexion_points.append((data.index[i], data["High"][i]))
-    return all_high_inflexion_points
-
-
-def find_bear_traps(potential_traps, from_date, to_date):
-    bear_traps = []
-    # Filter bear traps up to the given date
-    bear_traps_up_to_date = [(date, low) for date, low in potential_traps if from_date <= date <= to_date]
-
-    # For each bear trap, check if it has been invalidated by a higher high
-    for date, low in bear_traps_up_to_date:
-        # Find if a higher low trap occurred after the bear trap but before the given date
-        post_bear_trap_lows = pd.Series([low for trap_date, low in bear_traps_up_to_date if date <= trap_date <= to_date])
-        if (post_bear_trap_lows < low).any():
-            # Bear trap is invalidated
-            continue
-        bear_traps.append((date, low))
-
-        # Bear trap is valid
-    return bear_traps
-
-def find_lowest_bear_trap_within_price_range(potential_traps, up_to_date, low_price, high_price):
-    # Filter bear traps up to the given date
-    bear_traps_up_to_date = [(date, low) for date, low in potential_traps if date <= up_to_date]
-    
-    # For each bear trap, check if it has been invalidated by a higher high
-    for date, low in bear_traps_up_to_date:
-        # Find if a higher low trap occurred after the bear trap but before the given date
-        post_bear_trap_lows = pd.Series([low for trap_date, low in bear_traps_up_to_date if date <= trap_date <= up_to_date])
-        if (post_bear_trap_lows < low).any():
-            # Bear trap is invalidated
-            continue
-        # Bear trap is valid
-        if low_price <= low <= high_price:
-            return(date, low)
-    
-
-
-if __name__ == "__main__":
-    import ticker_getter as tg
-
-    data = get_2day_aggregated_data(
-        tg.fetch_stock_data("CPRT", period="max", interval="1d")
-    )
+@st.cache_data(ttl="1d")
 def get_apex_bull_raging_dates(data):
     print("I'm in")
     data = get_2day_aggregated_data(data)
@@ -274,9 +183,6 @@ def get_apex_bull_raging_dates(data):
         print(f"stopping point date: {stopping_point_date}")
 
         previous_bear_trap = find_lowest_bear_trap_within_price_range(potential_bear_traps, high_point_date, data.loc[stopping_point_date]["Low"], high_point_value)
-        # if len(bear_traps) < 2:
-        #     continue
-        # previous_bear_trap = bear_traps[-2]
 
         if previous_bear_trap is None:
             continue
@@ -548,7 +454,7 @@ def get_apex_downtrend_dates(data):
 
     return downtrend_dates
 
-
+@st.cache_data(ttl="1d")
 def get_apex_bull_appear_dates(data):
     aggregated_data = get_2day_aggregated_data(data)
 
@@ -616,7 +522,16 @@ def get_apex_bull_appear_dates(data):
                 print(f"condition3: bear trap met, {active_bear_traps}")
 
             if any_bar_went_below_kangaroo and bullish_bar_went_back_up_to_range and bear_trap_taken:
+                # Condition 4: SMA line cannot be on downtrend (50 SMA sloping downwards)
+                aggregated_data["SMA_50"] = aggregated_data["Close"].rolling(window=50).mean()
+                # get the slope of 50 SMA from 5 days ago to today
+                if aggregated_data["SMA_50"].iloc[target_pos - 5] > aggregated_data["SMA_50"].iloc[target_pos]:
+                    print("condition4 not met: 50 SMA is sloping downwards")
+                    break
+                
+                print("condition4 met: 50 SMA is sloping upwards")
                 bull_appear_dates.append(curr_date)
+                
                 print(
                     "✅ Wallaby date: "
                     + str(date)
@@ -633,8 +548,95 @@ def get_apex_bull_appear_dates(data):
 @st.cache_data(ttl="1d")
 def get_apex_bear_appear_dates(data):
     aggregated_data = get_2day_aggregated_data(data)
-    # TODO: implement after bull appear is confirmed to be working because similar logic
-    return []
+
+    # Find dates where the low of the current day is higher than the low of the previous day = Kangaroo wallaby formation
+    condition = (aggregated_data["Low"] > aggregated_data["Low"].shift(1)) & (
+        aggregated_data["High"] < aggregated_data["High"].shift(1)
+    )
+    wallaby_dates = aggregated_data.index[condition]
+
+    bear_appear_dates = []
+    potential_bull_traps = get_high_inflexion_points(aggregated_data)
+    for date in wallaby_dates:
+        print(f"======{date}======")
+        wallaby_pos = aggregated_data.index.get_loc(date)
+        kangaroo_pos = wallaby_pos - 1
+
+        # Get date index 1 year before date, approximately 126 indexes before
+        start_index = max(0, wallaby_pos - 126)
+        end_index = kangaroo_pos - 1
+
+        active_bull_traps = find_bull_traps(potential_bull_traps, aggregated_data.index[start_index], aggregated_data.index[end_index])
+        if not active_bull_traps:
+            continue
+        
+        any_bar_went_above_kangaroo = False
+        bearish_bar_went_back_down_to_range = False
+        bull_trap_taken = False
+        # Check the next 4 trading dates from wallaby date
+        for i in range(1, 5):
+            print(f"Checking {i} days after wallaby date")
+            target_pos = wallaby_pos + i
+            if target_pos >= len(aggregated_data):
+                break
+
+            curr_data = aggregated_data.iloc[target_pos]
+            curr_date = aggregated_data.index[target_pos]
+
+            # Condition 1: High above the high of the kangaroo wallaby,
+            if (not any_bar_went_above_kangaroo and curr_data["High"] > aggregated_data.iloc[kangaroo_pos]["High"]):
+                any_bar_went_above_kangaroo = True
+                print("Condition 1 met")
+            
+
+            # Condition 2: must have one of 3 bearish bars (after going out of K range), close between high and low of kangaroo wallaby
+            if any_bar_went_above_kangaroo and not bearish_bar_went_back_down_to_range and aggregated_data.iloc[kangaroo_pos]["High"] > curr_data["Close"] > aggregated_data.iloc[kangaroo_pos]["Low"]:
+                print("condition2: close between high and low met")
+                if (
+                    curr_data["Open"]
+                    < curr_data["High"] - 2 / 3 * (curr_data["High"] - curr_data["Low"])
+                    and curr_data["Close"]
+                    < curr_data["High"] - 2 / 3 * (curr_data["High"] - curr_data["Low"])
+                ) or curr_data["Open"] - curr_data["Close"] > 0.5 * (
+                    curr_data["High"] - curr_data["Low"]
+                ):
+                    bearish_bar_went_back_down_to_range = True
+                    print("Condition 2: bearish bar met")
+
+            # Condition 3: check if there is a bull trap that has not taken the money with price between the high and low of K until today
+            
+            if not bull_trap_taken and any(
+                trap[1] < curr_data["High"] and trap[1] > curr_data["Low"]
+                for trap in active_bull_traps
+            ):
+                bull_trap_taken = True
+                print(f"condition3: bull trap met, {active_bull_traps}")
+
+
+
+            if any_bar_went_above_kangaroo and bearish_bar_went_back_down_to_range and bull_trap_taken:
+                # Condition 4: SMA line cannot be on uptrend (50 SMA sloping upwards)
+                aggregated_data["SMA_50"] = aggregated_data["Close"].rolling(window=50).mean()
+                # get the slope of 50 SMA from 5 days ago to today
+                if aggregated_data["SMA_50"].iloc[target_pos - 5] < aggregated_data["SMA_50"].iloc[target_pos]:
+                    print("condition4 not met: 50 SMA is sloping upwards")
+                    break
+                
+                print("condition4 met: 50 SMA is sloping downwards")
+
+                bear_appear_dates.append(curr_date)
+                print(
+                    "✅ Wallaby date: "
+                    + str(date)
+                    + "; Bear appear date: "
+                    + str(curr_date)
+                )
+                break
+                    
+        
+
+    return pd.DatetimeIndex(bear_appear_dates)
+
 
 
 def get_golden_cross_sma_dates(data, short_window=50, long_window=200):
