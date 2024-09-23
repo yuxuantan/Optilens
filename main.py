@@ -30,7 +30,13 @@ def get_user_inputs(settings=None):
         settings = {
             "tickers": [],
             "indicator_settings": {
+                "apex_bull_raging": {
+                    "is_enabled": False,
+                },
                 "apex_uptrend": {
+                    "is_enabled": False,
+                },
+                "apex_downtrend": {
                     "is_enabled": False,
                 },
                 "apex_bull_appear": {
@@ -39,12 +45,12 @@ def get_user_inputs(settings=None):
                 "apex_bear_appear": {
                     "is_enabled": False,
                 },
-                "golden_cross": {
+                "golden_cross_sma": {
                     "is_enabled": False,
                     "short_sma": 50,
                     "long_sma": 200,
                 },
-                "death_cross": {
+                "death_cross_sma": {
                     "is_enabled": False,
                     "short_sma": 50,
                     "long_sma": 200,
@@ -120,65 +126,75 @@ def get_user_inputs(settings=None):
 
     for indicator in selected_indicators:
         settings["indicator_settings"][indicator]["is_enabled"] = True
+
+        if indicator == "apex_bull_raging":
+            with st.expander("Apex Bull Raging Settings", expanded=False):
+                st.caption(
+                    "Apex Bull Raging is a signal that occurs when there are majority bearish flush down bars, starting from more than 1/2 way since the latest bull trap, and reaches previous bear trap, rebounding back into the range"
+                )
         if indicator == "apex_uptrend":
             with st.expander("Apex Uptrend Settings", expanded=False):
                 st.caption(
-                    "Apex Uptrend is a signal that occurs when there is a series of higher highs and higher lows, forming an uptrend."
+                    "Apex Uptrend is a signal that occurs when there is lightning or M formation, above sma 50 and 200."
+                )
+        if indicator == "apex_downtrend":
+            with st.expander("Apex Downtrend Settings", expanded=False):
+                st.caption(
+                    "Apex Downtrend is a signal that occurs when there is N or W formation, below sma 50"
                 )
         if indicator == "apex_bull_appear":
             with st.expander("Apex Bull Appear Settings", expanded=False):
                 st.caption(
                     "Apex Bull Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bullish bar (within up to 4 bars) after the wallaby, breaking from below Kangaroo Low, back into Kangaroo's price range."
                 )
-        if indicator == "apex_bear_appear":
-            with st.expander("Apex Bear Appear Settings", expanded=False):
-                st.caption(
-                    "Apex Bear Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bearish bar (within up to 4 bars) after the wallaby, breaking from above Kangaroo High back into Kangaroo's price range."
-                )
-
-        if indicator == "golden_cross":
+        # if indicator == "apex_bear_appear":
+        #     with st.expander("Apex Bear Appear Settings", expanded=False):
+        #         st.caption(
+        #             "Apex Bear Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bearish bar (within up to 4 bars) after the wallaby, breaking from above Kangaroo High back into Kangaroo's price range."
+        #         )
+        if indicator == "golden_cross_sma":
             with st.expander("Golden Cross Settings", expanded=False):
                 st.caption(
                     "Golden Cross is a bullish signal that occurs when the short-term moving average crosses above the long-term moving average."
                 )
-                settings["indicator_settings"]["golden_cross"]["short_sma"] = (
+                settings["indicator_settings"]["golden_cross_sma"]["short_sma"] = (
                     st.number_input(
                         "Short SMA window for Golden Cross:",
                         min_value=1,
-                        value=settings["indicator_settings"]["golden_cross"][
+                        value=settings["indicator_settings"]["golden_cross_sma"][
                             "short_sma"
                         ],
                     )
                 )
-                settings["indicator_settings"]["golden_cross"]["long_sma"] = (
+                settings["indicator_settings"]["golden_cross_sma"]["long_sma"] = (
                     st.number_input(
                         "Long SMA window for Golden Cross:",
                         min_value=1,
-                        value=settings["indicator_settings"]["golden_cross"][
+                        value=settings["indicator_settings"]["golden_cross_sma"][
                             "long_sma"
                         ],
                     )
                 )
 
-        if indicator == "death_cross":
+        if indicator == "death_cross_sma":
             with st.expander("Death Cross Settings", expanded=False):
                 st.caption(
                     "Death Cross is a bearish signal that occurs when the short-term moving average crosses below the long-term moving average."
                 )
-                settings["indicator_settings"]["death_cross"]["short_sma"] = (
+                settings["indicator_settings"]["death_cross_sma"]["short_sma"] = (
                     st.number_input(
                         "Short SMA window for Death Cross:",
                         min_value=1,
-                        value=settings["indicator_settings"]["death_cross"][
+                        value=settings["indicator_settings"]["death_cross_sma"][
                             "short_sma"
                         ],
                     )
                 )
-                settings["indicator_settings"]["death_cross"]["long_sma"] = (
+                settings["indicator_settings"]["death_cross_sma"]["long_sma"] = (
                     st.number_input(
                         "Long SMA window for Death Cross:",
                         min_value=1,
-                        value=settings["indicator_settings"]["death_cross"]["long_sma"],
+                        value=settings["indicator_settings"]["death_cross_sma"]["long_sma"],
                     )
                 )
 
