@@ -3,7 +3,7 @@ from typing import List, Dict
 import streamlit as st
 from datetime import datetime
 import utils.ticker_getter as tg
-from utils.indicator_utils import (get_2day_aggregated_data, get_high_inflexion_points, get_low_inflexion_points, find_lowest_bear_trap_within_price_range, find_bear_traps, find_bull_traps)
+from utils.indicator_utils import (get_2day_aggregated_data, get_high_inflexion_points, get_low_inflexion_points, find_lowest_bear_trap_within_price_range, find_highest_bull_trap_within_price_range, find_bear_traps, find_bull_traps)
 
 def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     """Analyze a stock and return notifications based on user preferences."""
@@ -76,20 +76,12 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
             dates = get_apex_downtrend_dates(data)
         elif indicator == "apex_bull_raging":
             dates = get_apex_bull_raging_dates(data)
+        elif indicator == "apex_bear_raging":
+            dates = get_apex_bear_raging_dates(data)
 
-        # If no dates are found, skip this indicator
+
+        # if no dates are found
         if dates is None or len(dates) == 0:
-            return None
-
-        ## if the latest date does not exist in the data, return None
-        # if (dates[-1] != data.index[-1]):
-        #     return None
-
-        # last indicator appear date
-        last_date_detected = dates[-1]
-
-        # check the last x dates using index
-        if last_date_detected < recency_cutoff_date:
             return None
 
         indicator_dates[indicator] = dates
@@ -105,6 +97,7 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
 
     avg_percentage_change = 0
     valid_count = 0  # To keep track of how many valid instances we have
+
 
     for date in common_dates:
         index_of_date = data.index.get_loc(date)
@@ -145,46 +138,126 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
         avg_percentage_change / valid_count if valid_count > 0 else 0
     )
 
-    # Compile results
-    result = {
-        "common_dates": [str(date) for date in common_dates],
-        "total_instances": total_instances,
-        "success_rate": success_rate,
-        "avg_percentage_change": avg_percentage_change,
-    }
+    # if last date detected is after recency cutoff date, show it in the dataframe
+    if dates[-1] > recency_cutoff_date:
+        # Compile results
+        result = {
+            "common_dates": [str(date) for date in common_dates],
+            "total_instances": total_instances,
+            "success_rate": success_rate,
+            "avg_percentage_change": avg_percentage_change,
+        }
+    else:
+        result = {
+            "common_dates": None,
+            "total_instances": total_instances,
+            "success_rate": success_rate,
+            "avg_percentage_change": avg_percentage_change,
+        }
 
     return result
 
+# @st.cache_data(ttl="1d")
+def get_apex_bear_raging_dates(data):
+    data = get_2day_aggregated_data(data)
+
+    low_inflexion_points = get_low_inflexion_points(data)
+    potential_bull_traps = get_high_inflexion_points(data)
+
+    future_bull_traps = potential_bull_traps.copy()
+
+    bear_raging_dates = []
+
+    for low_point in low_inflexion_points:
+        low_point_date, low_point_value = low_point
+        print(f"************ checking {low_point_date}: ************")
+        if low_point_date not in data.index:
+            continue
+
+        # Find the stopping point (which is the next bull trap)
+        stopping_point_date = next((trap[0] for trap in future_bull_traps if trap[0] > low_point_date and trap[1] > low_point_value), data.index[-1])
+        future_bull_traps = [trap for trap in future_bull_traps if trap[0] >= low_point_date]
+
+        print(f"stopping point date: {stopping_point_date}")
+
+        previous_bull_trap = find_highest_bull_trap_within_price_range(tuple(potential_bull_traps), low_point_date, low_point_value, data.loc[stopping_point_date]["High"])
+
+        if previous_bull_trap is None:
+            print("❌ no previous bull trap found")
+            continue
+        print(f"previous_bull_trap: {previous_bull_trap}")
+
+        mid_point = previous_bull_trap[1] + (low_point_value - previous_bull_trap[1]) / 2
+
+        # Analyze the range from low point to stopping point
+        range_data = data.loc[low_point_date:stopping_point_date]
+        flush_up_mask = (range_data['Close'] - range_data['Open']) > 0.7 * (range_data['High'] - range_data['Low'])
+        flush_up_bars = range_data[flush_up_mask]
+
+        if flush_up_bars.empty or flush_up_bars.iloc[0]['Low'] > mid_point:
+            print(f"❌ first flush up started after mid point {mid_point}, or didn't happen at all")
+            continue
+        print(f"✅ first flush up started at {flush_up_bars.iloc[0]['Low']} before mid point {mid_point}")
+
+        # Find the date which broke above bull trap
+        break_above_bull_trap = range_data.index[range_data['High'] > previous_bull_trap[1]]
+        if break_above_bull_trap.empty:
+            print(f"❌ no break above bull trap {previous_bull_trap} before the price reaches stopping point")
+            continue
+        date_which_broke_above_bull_trap = break_above_bull_trap[0]
+        print(f"✅ date_which_broke_above_bull_trap: {date_which_broke_above_bull_trap}")
+
+        total_bar_count = len(range_data)
+        flush_up_count = flush_up_mask.sum()
+        if total_bar_count < 5 or flush_up_count / total_bar_count < 0.3:
+            print(f"❌ less than 5 bars or not majority flush up, flush up bars: {flush_up_count}, total bars: {total_bar_count}")
+            continue
+        print(f"✅ > 5 bars and majority flush up, flush up bars: {flush_up_count}, total bars: {total_bar_count}")
+
+        # Check 6 bars after break above bull trap
+        post_break_data = data.loc[date_which_broke_above_bull_trap:].head(6)
+        for i, (date, row) in enumerate(post_break_data.iterrows(), 1):
+            if (row['Close'] < previous_bull_trap[1] and 
+                (row['Close'] - row['Open'] < -0.5 * (row['High'] - row['Low']) or 
+                 (row['Open'] < row['High'] - 2/3 * (row['High'] - row['Low']) and 
+                  row['Close'] < row['High'] - 2/3 * (row['High'] - row['Low'])))):
+                print(f"🚀 {date} closed at {row['Close']}; below bull trap. All Conditions met!")
+                bear_raging_dates.append(date)
+                break
+            else:
+                print(f"❌ check bar {i}, no bearish bar closing below stop loss zone")
+
+    return bear_raging_dates
+
+
+
 @st.cache_data(ttl="1d")
 def get_apex_bull_raging_dates(data):
-    print("I'm in")
     data = get_2day_aggregated_data(data)
 
     high_inflexion_points = get_high_inflexion_points(data)
     potential_bear_traps = get_low_inflexion_points(data)
 
+    future_bear_traps = potential_bear_traps.copy()
+ 
     bull_raging_dates = []
 
     for high_point in high_inflexion_points:
         high_point_date, high_point_value = high_point
-        print(f"checking {high_point_date}:")
+        print(f"************ checking {high_point_date}: ************")
         if high_point_date not in data.index:
             continue
 
-        
         # Find the stopping point (which is the next bear trap)
-        stopping_point_date = None
-        for bear_trap in potential_bear_traps:
-            if bear_trap[0] > high_point_date:
-                stopping_point_date = bear_trap[0]
-                break
-        if stopping_point_date is None:
-            stopping_point_date = data.index[-1]
+        stopping_point_date = next((trap[0] for trap in future_bear_traps if trap[0] > high_point_date and trap[1] < high_point_value), data.index[-1])
+        future_bear_traps = [trap for trap in future_bear_traps if trap[0] >= high_point_date]
+
         print(f"stopping point date: {stopping_point_date}")
 
-        previous_bear_trap = find_lowest_bear_trap_within_price_range(potential_bear_traps, high_point_date, data.loc[stopping_point_date]["Low"], high_point_value)
+        previous_bear_trap = find_lowest_bear_trap_within_price_range(tuple(potential_bear_traps), high_point_date, data.loc[stopping_point_date]["Low"], high_point_value)
 
         if previous_bear_trap is None:
+            print("❌ no previous bear trap found")
             continue
         print(f"previous_bear_trap: {previous_bear_trap}")
 
@@ -192,40 +265,41 @@ def get_apex_bull_raging_dates(data):
 
         # Analyze the range from high point to stopping point
         range_data = data.loc[high_point_date:stopping_point_date]
-        flush_down_bars = range_data[
-            (range_data['Open'] - range_data['Close']) > 0.7 * (range_data['High'] - range_data['Low'])
-        ]
+        flush_down_mask = (range_data['Open'] - range_data['Close']) > 0.7 * (range_data['High'] - range_data['Low'])
+        flush_down_bars = range_data[flush_down_mask]
 
-        if len(flush_down_bars) == 0 or flush_down_bars.iloc[0]['High'] < mid_point:
+        if flush_down_bars.empty or flush_down_bars.iloc[0]['High'] < mid_point:
             print("❌ first flush down started after mid point, or didn't happen at all")
             continue
-        else:
-            print(f"✅ first flush down started at {flush_down_bars.iloc[0]['High']} before mid point {mid_point}")
+        print(f"✅ first flush down started at {flush_down_bars.iloc[0]['High']} before mid point {mid_point}")
 
         # Find the date which broke below bear trap
-        break_below_bear_trap = range_data[range_data['Low'] < previous_bear_trap[1]].index
-        if len(break_below_bear_trap) == 0:
+        break_below_bear_trap = range_data.index[range_data['Low'] < previous_bear_trap[1]]
+        if break_below_bear_trap.empty:
             print(f"❌ no break below bear trap {previous_bear_trap} before the price reaches stopping point")
             continue
         date_which_broke_below_bear_trap = break_below_bear_trap[0]
         print(f"✅ date_which_broke_below_bear_trap: {date_which_broke_below_bear_trap}")
 
         total_bar_count = len(range_data)
-        if total_bar_count < 5 or len(flush_down_bars) / total_bar_count < 0.2:
-            print(f"❌ less than 5 bars or not majority flush down, flush down bars: {len(flush_down_bars)}, total bars: {total_bar_count}")
+        flush_down_count = flush_down_mask.sum()
+        if total_bar_count < 5 or flush_down_count / total_bar_count < 0.3:
+            print(f"❌ less than 5 bars or not majority flush down, flush down bars: {flush_down_count}, total bars: {total_bar_count}")
             continue
-        else:
-            print(f"✅ > 5 bars and majority flush down, flush down bars: {len(flush_down_bars)}, total bars: {total_bar_count}")
+        print(f"✅ > 5 bars and majority flush down, flush down bars: {flush_down_count}, total bars: {total_bar_count}")
 
         # Check 6 bars after break below bear trap
         post_break_data = data.loc[date_which_broke_below_bear_trap:].head(6)
         for i, (date, row) in enumerate(post_break_data.iterrows(), 1):
-            if row['Close'] > previous_bear_trap[1]:
-                print("🚀 All Conditions met!")
+            if (row['Close'] > previous_bear_trap[1] and 
+                (row['Close'] - row['Open'] > 0.5 * (row['High'] - row['Low']) or 
+                 (row['Open'] > row['Low'] + 2/3 * (row['High'] - row['Low']) and 
+                  row['Close'] > row['Low'] + 2/3 * (row['High'] - row['Low'])))):
+                print(f"🚀 {date} closed at {row['Close']}; above bear trap. All Conditions met!")
                 bull_raging_dates.append(date)
                 break
             else:
-                print(f"❌ check bar {i}, price didn't close above stop loss zone")
+                print(f"❌ check bar {i}, no bullish bar closing above stop loss zone")
 
     return bull_raging_dates
 
@@ -243,7 +317,7 @@ def get_apex_bull_raging_dates(data):
     # enter at bullish bar
 
 
-@st.cache_data(ttl="1d")
+# @st.cache_data(ttl="1d")
 def get_apex_uptrend_dates(data):
     data["SMA_50"] = data["Close"].rolling(window=50).mean()
     data["SMA_200"] = data["Close"].rolling(window=200).mean()
@@ -252,13 +326,14 @@ def get_apex_uptrend_dates(data):
 
     high_inflexion_points = []
     low_inflexion_points = []
-    for i in range(1, len(agg_data) - 1):
-        if agg_data["High"][i - 1] < agg_data["High"][i] > agg_data["High"][i + 1]:
+    for i in range(1, len(agg_data) - 2):
+        if (agg_data["High"][i - 1] < agg_data["High"][i] > agg_data["High"][i + 1]) and (agg_data["High"][i-2] < agg_data["High"][i] > agg_data["High"][i + 2]):
             high_inflexion_points.append(agg_data.index[i])
-        elif agg_data["Low"][i - 1] > agg_data["Low"][i] < agg_data["Low"][i + 1]:
+        elif (agg_data["Low"][i - 1] > agg_data["Low"][i] < agg_data["Low"][i + 1]) and (agg_data["Low"][i-2] > agg_data["Low"][i] < agg_data["Low"][i + 2]):
             low_inflexion_points.append(agg_data.index[i])
 
     inflexion_points = sorted(high_inflexion_points + low_inflexion_points)
+    print(inflexion_points)
     inflexion_data = agg_data.loc[inflexion_points, ["High", "Low"]]
     inflexion_data = pd.DataFrame(inflexion_data)
 
@@ -266,11 +341,16 @@ def get_apex_uptrend_dates(data):
 
     # LIGHTNING formation check
     for inflexion_point in high_inflexion_points:
+        print(f'checking lightning formation for high inflexion point {inflexion_point}')
         # get index of inflexion point
         inflexion_point_pos = inflexion_data.index.get_loc(inflexion_point)
+
         # if inflexion point is one of the last 4 datapoints, skip
         if inflexion_point_pos >= len(inflexion_data) - 4:
+            print("broke out because too close to the end")
             break
+
+        #TODO: ensure its alternate. high, low, high, low
 
         # Get price of first inflexion point
         point_a = inflexion_data.iloc[inflexion_point_pos]
@@ -279,7 +359,7 @@ def get_apex_uptrend_dates(data):
         point_d = inflexion_data.iloc[inflexion_point_pos + 3]
 
         # Check for lightning. must start with high inflexion point, C must be lower than A ,   D must be lower than B and cross back to B (assume it just have to reverse in the direction, but havent reach B)
-        if point_c["High"] < point_a["High"] and point_d["Low"] < point_b["Low"]:
+        if point_d["High"] < point_b["High"] < point_c["High"] < point_a["High"] and point_d["Low"] < point_b["Low"] < point_c["Low"] < point_a["Low"]:
             # Check if all points are above sma50 and sma200
             if (
                 (point_a["Low"] < data.loc[point_a.name, "SMA_50"])
@@ -291,7 +371,10 @@ def get_apex_uptrend_dates(data):
                 or (point_d["Low"] < data.loc[point_d.name, "SMA_50"])
                 or (point_d["Low"] < data.loc[point_d.name, "SMA_200"])
             ):
-                break
+                print("❌exit because below sma")
+                continue
+
+            print("✅ all above sma")
 
             # add all the dateindex of 4 inflexion points abcd
             uptrend_dates.append(inflexion_data.index[inflexion_point_pos + 3])
@@ -307,6 +390,7 @@ def get_apex_uptrend_dates(data):
 
     # M formation check: D must be higher than  B and cross back to C to reach E (above A)
     for inflexion_point in low_inflexion_points:
+        print(f'checking M formation for low inflexion point {inflexion_point}')
         # get index of inflexion point
         inflexion_point_pos = inflexion_data.index.get_loc(inflexion_point)
         # if inflexion point is one of the last 5 datapoints, skip
@@ -322,8 +406,8 @@ def get_apex_uptrend_dates(data):
 
         # Check for M formation. must start with low inflexion point, D must be higher than B, and cross back to C to reach E (above A)
         if (
-            point_d["High"] > point_b["High"]
-            and point_c["Low"] > point_e["Low"] > point_a["Low"]
+            point_d["High"] > point_b["High"] > point_c["High"] > point_e["High"] > point_a["High"]
+            and point_d["Low"] > point_b["Low"] > point_c["Low"] > point_e["Low"] > point_a["Low"]
         ):
             # Check if all points are above sma50 and sma200
             if (
@@ -338,9 +422,9 @@ def get_apex_uptrend_dates(data):
                 or (point_e["Low"] < data.loc[point_e.name, "SMA_50"])
                 or (point_e["Low"] < data.loc[point_e.name, "SMA_200"])
             ):
-                break
+                continue
             # add all the dateindex of 4 inflexion points abcd
-            uptrend_dates.append(inflexion_data.index[inflexion_point_pos + 3])
+            uptrend_dates.append(inflexion_data.index[inflexion_point_pos + 4])
             print(
                 [
                     "M formation",
@@ -348,13 +432,14 @@ def get_apex_uptrend_dates(data):
                     inflexion_data.index[inflexion_point_pos + 1],
                     inflexion_data.index[inflexion_point_pos + 2],
                     inflexion_data.index[inflexion_point_pos + 3],
+                    inflexion_data.index[inflexion_point_pos + 4]
                 ]
             )
 
     return uptrend_dates
 
 
-@st.cache_data(ttl="1d")
+# @st.cache_data(ttl="1d")
 def get_apex_downtrend_dates(data):
     data["SMA_50"] = data["Close"].rolling(window=50).mean()
 
@@ -362,10 +447,10 @@ def get_apex_downtrend_dates(data):
 
     high_inflexion_points = []
     low_inflexion_points = []
-    for i in range(1, len(agg_data) - 1):
-        if agg_data["High"][i - 1] < agg_data["High"][i] > agg_data["High"][i + 1]:
+    for i in range(1, len(agg_data) - 2):
+        if (agg_data["High"][i - 1] < agg_data["High"][i] > agg_data["High"][i + 1]) and (agg_data["High"][i-2] < agg_data["High"][i] > agg_data["High"][i + 2]):
             high_inflexion_points.append(agg_data.index[i])
-        elif agg_data["Low"][i - 1] > agg_data["Low"][i] < agg_data["Low"][i + 1]:
+        elif (agg_data["Low"][i - 1] > agg_data["Low"][i] < agg_data["Low"][i + 1]) and (agg_data["Low"][i-2] > agg_data["Low"][i] < agg_data["Low"][i + 2]):
             low_inflexion_points.append(agg_data.index[i])
 
     inflexion_points = sorted(high_inflexion_points + low_inflexion_points)
@@ -389,7 +474,7 @@ def get_apex_downtrend_dates(data):
         point_d = inflexion_data.iloc[inflexion_point_pos + 3]
 
         # Check for N. must start with low inflexion point, C must be higher than A , D must be higher than B and cross back to B (assume it just have to reverse in the direction, but havent reach B)
-        if point_c["High"] > point_a["High"] and point_d["Low"] > point_b["Low"]:
+        if point_d["Low"] > point_b["Low"] > point_c["Low"] > point_a["Low"] and point_d["High"] > point_b["High"] > point_c["High"] > point_a["High"]:
             # Check if all points are below sma50
             if (
                 (point_a["Low"] > data.loc[point_a.name, "SMA_50"])
@@ -397,7 +482,7 @@ def get_apex_downtrend_dates(data):
                 or (point_c["Low"] > data.loc[point_c.name, "SMA_50"])
                 or (point_d["Low"] > data.loc[point_d.name, "SMA_50"])
             ):
-                break
+                continue
 
             # add all the dateindex of 4 inflexion points abcd
             downtrend_dates.append(inflexion_data.index[inflexion_point_pos + 3])
@@ -428,8 +513,8 @@ def get_apex_downtrend_dates(data):
 
         # Check for M formation. must start with low inflexion point, D must be lower than  B and cross back to C to reach E (below A)
         if (
-            point_d["Low"] < point_b["Low"]
-            and point_c["High"] < point_e["High"] < point_a["High"]
+            point_d["Low"] < point_b["Low"] < point_c["Low"] < point_e["Low"] < point_a["Low"]
+            and point_d["High"] < point_b["High"] < point_c["High"] < point_e["High"] < point_a["High"]
         ):
             # Check if all points are below sma50
             if (
@@ -439,9 +524,9 @@ def get_apex_downtrend_dates(data):
                 or (point_d["Low"] > data.loc[point_d.name, "SMA_50"])
                 or (point_e["Low"] > data.loc[point_e.name, "SMA_50"])
             ):
-                break
+                continue
             # add all the dateindex of 4 inflexion points abcd
-            downtrend_dates.append(inflexion_data.index[inflexion_point_pos + 3])
+            downtrend_dates.append(inflexion_data.index[inflexion_point_pos + 4])
             print(
                 [
                     "W formation",
@@ -531,7 +616,7 @@ def get_apex_bull_appear_dates(data):
                 
                 print("condition4 met: 50 SMA is sloping upwards")
                 bull_appear_dates.append(curr_date)
-                
+
                 print(
                     "✅ Wallaby date: "
                     + str(date)

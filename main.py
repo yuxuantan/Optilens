@@ -30,6 +30,9 @@ def get_user_inputs(settings=None):
         settings = {
             "tickers": [],
             "indicator_settings": {
+                "apex_bear_raging": {
+                    "is_enabled": False,
+                },
                 "apex_bull_raging": {
                     "is_enabled": False,
                 },
@@ -126,6 +129,11 @@ def get_user_inputs(settings=None):
 
     for indicator in selected_indicators:
         settings["indicator_settings"][indicator]["is_enabled"] = True
+        if indicator == "apex_bear_raging":
+            with st.expander("Apex Bear Raging Settings", expanded=False):
+                st.caption(
+                    "Apex Bear Raging is a signal that occurs when there are majority bullish flush up bars, starting from more than 1/2 way since the latest bear trap, and reaches previous bull trap, rebounding back into the range"
+                )
 
         if indicator == "apex_bull_raging":
             with st.expander("Apex Bull Raging Settings", expanded=False):
@@ -482,6 +490,15 @@ with streamlit_analytics.track(unsafe_password="test123"):
             progress_text_placeholder = st.empty()
             screening_results = pd.DataFrame(columns=["Ticker"])
 
+            # Placeholder for overall probability calc
+            overall_success_rate_placeholder = st.empty()
+            overall_change_percent_placeholder = st.empty()
+            overall_num_instances_placeholder = st.empty()
+
+            overall_num_instances = 0
+            overall_num_instances_rise = 0
+            overall_change_percent = 0
+
             # Placeholder for the DataFrame that will be updated
             dataframe_placeholder = st.empty()
 
@@ -493,24 +510,34 @@ with streamlit_analytics.track(unsafe_password="test123"):
                 )
 
                 if result is not None:
-                    # Create a new DataFrame for the new row
-                    new_row = pd.DataFrame(
-                        {
-                            "Ticker": [ticker],
-                            "Dates which fit conditions": [result["common_dates"]],
-                            "Total instances": result["total_instances"],
-                            f"% Chance stock rises {settings["x"]} days later": result["success_rate"],
-                            f"Avg change % {settings["x"]} days later": result["avg_percentage_change"],
-                        }
-                    )
+                    overall_num_instances += result["total_instances"]
+                    overall_num_instances_rise += result["total_instances"] * result["success_rate"]/100
+                    overall_change_percent += result["total_instances"] * result["avg_percentage_change"]
 
-                    # Concatenate the new row with the existing DataFrame
-                    screening_results = pd.concat(
-                        [screening_results, new_row], ignore_index=True
-                    )
+                    if result["common_dates"] is not None:
+                        # Create a new DataFrame for the new row
+                        new_row = pd.DataFrame(
+                            {
+                                "Ticker": [ticker],
+                                "Dates which fit conditions": [result["common_dates"]],
+                                "Total instances": result["total_instances"],
+                                f"% Chance stock rises {settings["x"]} days later": result["success_rate"],
+                                f"Avg change % {settings["x"]} days later": result["avg_percentage_change"],
+                            }
+                        )
 
-                    # Update the DataFrame in the frontend
-                    dataframe_placeholder.dataframe(screening_results, width=1000)
+                        # Concatenate the new row with the existing DataFrame
+                        screening_results = pd.concat(
+                            [screening_results, new_row], ignore_index=True
+                        )
+
+                        # Update overall stats in frontend
+                        overall_success_rate_placeholder.metric("Overall Chance Rises X days later(%)", round(overall_num_instances_rise/overall_num_instances*100, 2))
+                        overall_change_percent_placeholder.metric("Overall Change percent X days later(%)", round(overall_change_percent/overall_num_instances, 2))
+                        overall_num_instances_placeholder.metric("Overall Number of instances", overall_num_instances)
+                        # Update the DataFrame in the frontend
+                        dataframe_placeholder.dataframe(screening_results, width=1000)
+
 
             progress_text_placeholder.success(
                 f"Completed screening of {count}/{total_tickers} tickers"
