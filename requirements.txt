@@ -122,4 +122,4 @@ websockets==12.0
 yarl==1.9.4
 yfinance==0.2.43
 pytickersymbols
-yaml
+PyYAML
