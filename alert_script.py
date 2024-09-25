@@ -46,7 +46,7 @@ def alert_bull_raging():
 
 Win rate (stock rise) 20 days later(%): {round(overall_num_instances_rise/overall_num_instances*100, 2)}
 Avg price change 20 days later(%): {round(overall_change_percent/overall_num_instances, 2)}
-Number of times indicator happen for all tickers scanned: {overall_num_instances}
+Number of times signal appear for everything scanned: {overall_num_instances}
 
 Screen results (Ticker - Last Bull Raging Entry Date):
 
@@ -100,7 +100,7 @@ def alert_bull_appear():
 
 Win rate (stock rise) 20 days later(%): {round(overall_num_instances_rise/overall_num_instances*100, 2)}
 Avg price change 20 days later(%): {round(overall_change_percent/overall_num_instances, 2)}
-Number of times indicator happen for all tickers scanned: {overall_num_instances}
+Number of times signal appear for everything scanned: {overall_num_instances}
 
 Screen results (Ticker - Last Bull Appear Entry Date):
 {output_msg}
