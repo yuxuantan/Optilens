@@ -688,7 +688,7 @@ def get_apex_bull_appear_dates(data):
                 )
             ):
                 print(f"Condition 5b met: touches SMA 20, 50 or 200: {curr_data['Low']}, {curr_data['High']}")
-                print(f"SMAs are {aggregated_data["SMA_20"].iloc[curr_pos]}, {aggregated_data["SMA_50"].iloc[curr_pos]}, {aggregated_data["SMA_200"].iloc[curr_pos]}")
+                # print(f"SMAs are {aggregated_data["SMA_20"].iloc[curr_pos]}, {aggregated_data["SMA_50"].iloc[curr_pos]}, {aggregated_data["SMA_200"].iloc[curr_pos]}")
             else:
                 continue
 
