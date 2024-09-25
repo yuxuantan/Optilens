@@ -9,6 +9,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      env: # Or as an environment variable
+        TELEGRAM_BOT_API_TOKEN: ${{ secrets.TELEGRAM_BOT_API_TOKEN }}
+
       - name: checkout repo content
         uses: actions/checkout@v2 # checkout the repository content
 
