@@ -1,8 +1,7 @@
 name: Run alerting script
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'  # This cron expression triggers the workflow every 10 mins (temp)
+  - cron: '0 20 * * *'  # This cron expression triggers the workflow daily at 8 PM
   workflow_dispatch:       # Allow manual triggering of the workflow
 
 jobs:
