@@ -1,7 +1,6 @@
 import utils.indicator_evaluator as ie
 import utils.telegram_controller as tc
 import utils.ticker_getter as tg
-import datetime
 
 # stock_list = tg.get_all_tickers()
 stock_list = tg.get_snp_500()
@@ -43,8 +42,7 @@ def alert_bull_raging():
     if output_msg == "":
         output_msg = "No stocks found matching the criteria"
 
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    output_msg = f""" *Bull raging screening completed at: {current_time}*
+    output_msg = f""" *Bull raging screening completed*
 ⚙️ Recency: {settings['recency']} days
 {screening_pool_msg}
 
@@ -96,8 +94,7 @@ def alert_bull_appear():
     if output_msg == "":
         output_msg = "No stocks found matching the criteria"
 
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    output_msg = f""" *Bull appear screening completed at: {current_time}*
+    output_msg = f""" *Bull appear screening completed*
 ⚙️ Recency: {settings['recency']} days
 {screening_pool_msg}
 
