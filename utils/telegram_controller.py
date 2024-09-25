@@ -1,7 +1,13 @@
 import telebot
 import streamlit as st
 # Initialize the bot with your token
-bot = telebot.TeleBot(st.secrets["TELEGRAM_BOT_API_TOKEN"])
+
+import os
+
+try:
+    bot = telebot.TeleBot(st.secrets["TELEGRAM_BOT_API_TOKEN"])
+except KeyError:
+    bot = telebot.TeleBot(os.getenv("TELEGRAM_BOT_API_TOKEN"))
 
 # Function to send a message
 def send_message(chat_id=27392018, message="Hi there!"):

@@ -2,8 +2,12 @@ import utils.indicator_evaluator as ie
 import utils.telegram_controller as tc
 import utils.ticker_getter as tg
 import datetime
+
+# stock_list = tg.get_all_tickers()
+stock_list = tg.get_snp_500()
+screening_pool_msg = "⚙️ Screening pool: All s&p 500 stocks with market px above 20"
+
 def alert_bull_raging():
-    stock_list = tg.get_snp_500()
     settings = {
         "indicator_settings": {
             "apex_bull_raging": {
@@ -42,7 +46,7 @@ def alert_bull_raging():
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     output_msg = f""" *Bull raging screening completed at: {current_time}*
 ⚙️ Recency: {settings['recency']} days
-⚙️ Screening pool: All in S&P 500 with market px above 20
+{screening_pool_msg}
 
 Win rate (stock rise) 20 days later(%): {round(overall_num_instances_rise/overall_num_instances*100, 2)}
 Avg price change 20 days later(%): {round(overall_change_percent/overall_num_instances, 2)}
@@ -57,7 +61,6 @@ Screen results (Ticker - Last Bull Raging Entry Date):
 
 
 def alert_bull_appear():
-    stock_list = tg.get_snp_500()
     settings = {
         "indicator_settings": {
             "apex_bull_appear": {
@@ -96,7 +99,7 @@ def alert_bull_appear():
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     output_msg = f""" *Bull appear screening completed at: {current_time}*
 ⚙️ Recency: {settings['recency']} days
-⚙️ Screening pool: All in S&P 500 with market px above 20
+{screening_pool_msg}
 
 Win rate (stock rise) 20 days later(%): {round(overall_num_instances_rise/overall_num_instances*100, 2)}
 Avg price change 20 days later(%): {round(overall_change_percent/overall_num_instances, 2)}
