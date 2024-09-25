@@ -6,7 +6,7 @@ import os
 
 try:
     bot = telebot.TeleBot(st.secrets["TELEGRAM_BOT_API_TOKEN"])
-except KeyError:
+except FileNotFoundError:
     bot = telebot.TeleBot(os.getenv("TELEGRAM_BOT_API_TOKEN"))
 
 # Function to send a message
