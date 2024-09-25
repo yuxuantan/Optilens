@@ -110,5 +110,8 @@ Screen results (Ticker - Last Bull Appear Entry Date):
 
 
 if __name__ == "__main__":
+    tc.send_message(chat_id=27392018, message="Started screening for bull appear..")
     alert_bull_appear()
+    tc.send_message(chat_id=27392018, message="Started screening for bull raging..")
     alert_bull_raging()
+    tc.send_message(chat_id=27392018, message="All scheduled screening completed!")
