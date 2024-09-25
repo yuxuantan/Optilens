@@ -30,9 +30,9 @@ def get_user_inputs(settings=None):
         settings = {
             "tickers": [],
             "indicator_settings": {
-                "apex_bear_raging": {
-                    "is_enabled": False,
-                },
+                # "apex_bear_raging": {
+                #     "is_enabled": False,
+                # },
                 "apex_bull_raging": {
                     "is_enabled": False,
                 },
@@ -45,9 +45,9 @@ def get_user_inputs(settings=None):
                 "apex_bull_appear": {
                     "is_enabled": False,
                 },
-                "apex_bear_appear": {
-                    "is_enabled": False,
-                },
+                # "apex_bear_appear": {
+                #     "is_enabled": False,
+                # },
                 "golden_cross_sma": {
                     "is_enabled": False,
                     "short_sma": 50,
@@ -129,11 +129,11 @@ def get_user_inputs(settings=None):
 
     for indicator in selected_indicators:
         settings["indicator_settings"][indicator]["is_enabled"] = True
-        if indicator == "apex_bear_raging":
-            with st.expander("Apex Bear Raging Settings", expanded=False):
-                st.caption(
-                    "Apex Bear Raging is a signal that occurs when there are majority bullish flush up bars, starting from more than 1/2 way since the latest bear trap, and reaches previous bull trap, rebounding back into the range"
-                )
+        # if indicator == "apex_bear_raging":
+        #     with st.expander("Apex Bear Raging Settings", expanded=False):
+        #         st.caption(
+        #             "Apex Bear Raging is a signal that occurs when there are majority bullish flush up bars, starting from more than 1/2 way since the latest bear trap, and reaches previous bull trap, rebounding back into the range"
+        #         )
 
         if indicator == "apex_bull_raging":
             with st.expander("Apex Bull Raging Settings", expanded=False):
