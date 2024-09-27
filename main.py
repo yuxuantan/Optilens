@@ -6,6 +6,16 @@ import utils.indicator_evaluator as ie
 import utils.telegram_controller as tc
 import utils.ticker_getter as tg
 
+from st_paywall import add_auth
+
+if "email" in st.session_state:
+    st.write(st.session_state.email)
+if "user_subscribed" in st.session_state:
+    st.write(st.session_state.user_subscribed)
+#after authentication, the email and subscription status is stored in session state
+add_auth(required=True)
+
+
 dow_jones_tickers = tg.get_dow_jones()
 sp500_tickers = tg.get_snp_500()
 all_tickers = tg.get_all_tickers()

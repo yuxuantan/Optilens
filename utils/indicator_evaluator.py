@@ -266,8 +266,8 @@ def get_apex_bull_raging_dates(data):
             if row["Close"] > previous_bear_trap[1] and (
                 row["Close"] - row["Open"] > 0.5 * (row["High"] - row["Low"])
                 or (
-                    row["Open"] > row["Low"] + 2 / 3 * (row["High"] - row["Low"])
-                    and row["Close"] > row["Low"] + 2 / 3 * (row["High"] - row["Low"])
+                    row["Open"] > row["Low"] + 4 / 5 * (row["High"] - row["Low"])
+                    and row["Close"] > row["Low"] + 4 / 5 * (row["High"] - row["Low"])
                 )
             ):
                 print(
@@ -645,9 +645,9 @@ def get_apex_bull_appear_dates(data):
             ):
                 if (
                     curr_data["Open"]
-                    > curr_data["Low"] + 2 / 3 * (curr_data["High"] - curr_data["Low"])
+                    > curr_data["Low"] + 4 / 5 * (curr_data["High"] - curr_data["Low"])
                     and curr_data["Close"]
-                    > curr_data["Low"] + 2 / 3 * (curr_data["High"] - curr_data["Low"])
+                    > curr_data["Low"] + 4 / 5 * (curr_data["High"] - curr_data["Low"])
                 ) or curr_data["Close"] - curr_data["Open"] > 0.5 * (
                     curr_data["High"] - curr_data["Low"]
                 ):
