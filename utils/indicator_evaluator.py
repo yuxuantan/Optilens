@@ -14,10 +14,10 @@ from utils.indicator_utils import (
 )
 
 
-def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
+def analyze_stock(ticker: str, settings: Dict[str, int], period: str = "max") -> List[str]:
     """Analyze a stock and return notifications based on user preferences."""
     print(ticker)
-    data = tg.fetch_stock_data(ticker, period="max", interval="1d")
+    data = tg.fetch_stock_data(ticker, period=period, interval="1d")
 
     # if market price below 20, skip
     if data.empty or data["Close"].iloc[-1] < 20:

@@ -5,6 +5,7 @@ import utils.ticker_getter as tg
 stock_list = tg.get_all_tickers()
 # stock_list = tg.get_snp_500()
 screening_pool_msg = "⚙️ Screening pool: All stocks with market px above 20"
+chart_interval_msg = "⚙️ Chart Interval: 2D"
 
 def alert_bull_raging():
     settings = {
@@ -45,13 +46,12 @@ def alert_bull_raging():
     output_msg = f""" *Bull raging screening completed*
 ⚙️ Recency: {settings['recency']} days
 {screening_pool_msg}
+{chart_interval_msg}
 
-Win rate (stock rise) 20 days later(%): {round(overall_num_instances_rise/overall_num_instances*100, 2)}
-Avg price change 20 days later(%): {round(overall_change_percent/overall_num_instances, 2)}
-Number of times signal appear for everything scanned: {overall_num_instances}
+Avg win rate (stock rise) 1mth later(%): {round(overall_num_instances_rise/overall_num_instances*100, 2)}
+Avg price change 1mth later(%): {round(overall_change_percent/overall_num_instances, 2)}
 
 Screen results (Ticker - Last Bull Raging Entry Date):
-
 {output_msg}
 """
     tc.send_message(chat_id=27392018, message=output_msg)
@@ -97,10 +97,10 @@ def alert_bull_appear():
     output_msg = f""" *Bull appear screening completed*
 ⚙️ Recency: {settings['recency']} days
 {screening_pool_msg}
+{chart_interval_msg}
 
-Win rate (stock rise) 20 days later(%): {round(overall_num_instances_rise/overall_num_instances*100, 2)}
-Avg price change 20 days later(%): {round(overall_change_percent/overall_num_instances, 2)}
-Number of times signal appear for everything scanned: {overall_num_instances}
+Avg win rate (stock rise) 1mth later(%): {round(overall_num_instances_rise/overall_num_instances*100, 2)}
+Avg price change 1mth later(%): {round(overall_change_percent/overall_num_instances, 2)}
 
 Screen results (Ticker - Last Bull Appear Entry Date):
 {output_msg}
@@ -114,4 +114,3 @@ if __name__ == "__main__":
     alert_bull_appear()
     tc.send_message(chat_id=27392018, message="Started screening for bull raging..")
     alert_bull_raging()
-    tc.send_message(chat_id=27392018, message="All scheduled screening completed!")
