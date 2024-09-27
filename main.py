@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import utils.supabase as db
 import utils.indicator_evaluator as ie
-import streamlit_analytics
+# import streamlit_analytics
 import utils.telegram_controller as tc
 import utils.ticker_getter as tg
 
@@ -11,6 +11,8 @@ sp500_tickers = tg.get_snp_500()
 all_tickers = tg.get_all_tickers()
 
 ticker_selection_options = all_tickers + ["ALL", "S&P 500", "Dow Jones"]
+# get url parameters
+show_params = st.query_params.get("show")
 
 # Function to display ticker input with autocomplete and multi-select
 def ticker_input(key="ticker_input", default=None):
@@ -30,24 +32,6 @@ def get_user_inputs(settings=None):
         settings = {
             "tickers": [],
             "indicator_settings": {
-                # "apex_bear_raging": {
-                #     "is_enabled": False,
-                # },
-                "apex_bull_raging": {
-                    "is_enabled": False,
-                },
-                "apex_uptrend": {
-                    "is_enabled": False,
-                },
-                "apex_downtrend": {
-                    "is_enabled": False,
-                },
-                "apex_bull_appear": {
-                    "is_enabled": False,
-                },
-                # "apex_bear_appear": {
-                #     "is_enabled": False,
-                # },
                 "golden_cross_sma": {
                     "is_enabled": False,
                     "short_sma": 50,
@@ -107,6 +91,23 @@ def get_user_inputs(settings=None):
             "recency": 1,
             "x": 7
         }
+    if show_params == "apex":
+        # settings["indicator_settings"]["apex_bear_raging"] = {
+        #     "is_enabled": True,
+        # }
+        settings["indicator_settings"]["apex_bull_raging"] = {
+            "is_enabled": False,
+        }
+        settings["indicator_settings"]["apex_uptrend"] = {
+            "is_enabled": False,
+        }
+        # settings["indicator_settings"]["apex_downtrend"] = {
+            # "is_enabled": True,
+        # }
+        settings["indicator_settings"]["apex_bull_appear"] = {
+            "is_enabled": False,
+        }
+        
 
     # Use the ticker_input function for adding tickers
     settings["tickers"] = ticker_input(default=settings.get("tickers", []))
@@ -134,7 +135,6 @@ def get_user_inputs(settings=None):
         #         st.caption(
         #             "Apex Bear Raging is a signal that occurs when there are majority bullish flush up bars, starting from more than 1/2 way since the latest bear trap, and reaches previous bull trap, rebounding back into the range"
         #         )
-
         if indicator == "apex_bull_raging":
             with st.expander("Apex Bull Raging Settings", expanded=False):
                 st.caption(
@@ -439,118 +439,118 @@ def get_user_inputs(settings=None):
     return settings
 
 
-with streamlit_analytics.track(unsafe_password="test123"):
-    st.title("Optilens Stock Screener 📈")
-    st.subheader("Find stocks using technical indicators")
+# with streamlit_analytics.track(unsafe_password="test123"):
+st.title("Optilens Stock Screener 📈")
+st.subheader("Find stocks using technical indicators")
 
-    st.sidebar.subheader("Any feedback/ feature requests?")
+st.sidebar.subheader("Any feedback/ feature requests?")
 
-    feedback = st.sidebar.text_area("", height=100)
-    submit_feedback = st.sidebar.button("Submit")
-    if submit_feedback:
-        tc.send_message(message="User feedback received: \n" + feedback)
-        st.sidebar.success(f"Feedback '{feedback}' submitted successfully. Thank you for your feedback!")
-    
-
-
-    # Get user inputs
-    settings = get_user_inputs()
-    screen_button_placeholder = st.empty()
-    screen_button = screen_button_placeholder.button("🔎 Screen")
+feedback = st.sidebar.text_area("", height=100)
+submit_feedback = st.sidebar.button("Submit")
+if submit_feedback:
+    tc.send_message(message="User feedback received: \n" + feedback)
+    st.sidebar.success(f"Feedback '{feedback}' submitted successfully. Thank you for your feedback!")
 
 
-    if screen_button:
-        if settings["tickers"]:
-            # check if there is any indicators enabled in settings['indicator_settings']
-            if (
-                len(
-                    [
-                        k
-                        for k, v in settings["indicator_settings"].items()
-                        if v["is_enabled"]
-                    ]
-                )
-                == 0
-            ):
-                st.error("Please enable at least one technical indicator.")
-                st.stop()
 
-            screen_button_placeholder.empty()
-            stop_screening = screen_button_placeholder.button(
-                "Stop screening", key="stop_screening"
+# Get user inputs
+settings = get_user_inputs()
+screen_button_placeholder = st.empty()
+screen_button = screen_button_placeholder.button("🔎 Screen")
+
+
+if screen_button:
+    if settings["tickers"]:
+        # check if there is any indicators enabled in settings['indicator_settings']
+        if (
+            len(
+                [
+                    k
+                    for k, v in settings["indicator_settings"].items()
+                    if v["is_enabled"]
+                ]
             )
-            if stop_screening:
-                st.rerun()
+            == 0
+        ):
+            st.error("Please enable at least one technical indicator.")
+            st.stop()
 
-            st.divider()
-            st.header("Screening Results")
-            progress_bar = st.progress(0)
-            total_tickers = len(settings["tickers"])
+        screen_button_placeholder.empty()
+        stop_screening = screen_button_placeholder.button(
+            "Stop screening", key="stop_screening"
+        )
+        if stop_screening:
+            st.rerun()
 
-            progress_text_placeholder = st.empty()
-            screening_results = pd.DataFrame(columns=["Ticker"])
+        st.divider()
+        st.header("Screening Results")
+        progress_bar = st.progress(0)
+        total_tickers = len(settings["tickers"])
 
-            # Placeholder for overall probability calc
-            overall_success_rate_placeholder = st.empty()
-            overall_change_percent_placeholder = st.empty()
-            overall_num_instances_placeholder = st.empty()
+        progress_text_placeholder = st.empty()
+        screening_results = pd.DataFrame(columns=["Ticker"])
 
-            overall_num_instances = 0
-            overall_num_instances_rise = 0
-            overall_change_percent = 0
+        # Placeholder for overall probability calc
+        overall_success_rate_placeholder = st.empty()
+        overall_change_percent_placeholder = st.empty()
+        overall_num_instances_placeholder = st.empty()
 
-            # Placeholder for the DataFrame that will be updated
-            dataframe_placeholder = st.empty()
+        overall_num_instances = 0
+        overall_num_instances_rise = 0
+        overall_change_percent = 0
 
-            for count, ticker in enumerate(settings["tickers"], start=1):
-                result = ie.analyze_stock(ticker, settings)
-                progress_bar.progress(count / total_tickers)
-                progress_text_placeholder.info(
-                    f"Screening {count}/{total_tickers} tickers"
-                )
+        # Placeholder for the DataFrame that will be updated
+        dataframe_placeholder = st.empty()
 
-                if result is not None:
-                    overall_num_instances += result["total_instances"]
-                    overall_num_instances_rise += result["total_instances"] * result["success_rate"]/100
-                    overall_change_percent += result["total_instances"] * result["avg_percentage_change"]
-
-                    if result["common_dates"] is not None:
-                        # Create a new DataFrame for the new row
-                        new_row = pd.DataFrame(
-                            {
-                                "Ticker": [ticker],
-                                "Dates which fit conditions": [result["common_dates"]],
-                                "Total instances": result["total_instances"],
-                                f"% Chance stock rises {settings["x"]} days later": result["success_rate"],
-                                f"Avg change % {settings["x"]} days later": result["avg_percentage_change"],
-                            }
-                        )
-
-                        # Concatenate the new row with the existing DataFrame
-                        screening_results = pd.concat(
-                            [screening_results, new_row], ignore_index=True
-                        )
-
-                        # Update overall stats in frontend
-                        overall_success_rate_placeholder.metric("Overall Chance Rises X days later(%)", round(overall_num_instances_rise/overall_num_instances*100, 2))
-                        overall_change_percent_placeholder.metric("Overall Change percent X days later(%)", round(overall_change_percent/overall_num_instances, 2))
-                        overall_num_instances_placeholder.metric("Overall Number of instances", overall_num_instances)
-                        # Update the DataFrame in the frontend
-                        dataframe_placeholder.dataframe(screening_results, width=1000)
-
-
-            progress_text_placeholder.success(
-                f"Completed screening of {count}/{total_tickers} tickers"
+        for count, ticker in enumerate(settings["tickers"], start=1):
+            result = ie.analyze_stock(ticker, settings)
+            progress_bar.progress(count / total_tickers)
+            progress_text_placeholder.info(
+                f"Screening {count}/{total_tickers} tickers"
             )
-            progress_bar.empty()
 
-            # recreate screen button after complete
-            screen_button_placeholder.empty()
-            screen_button_placeholder.button("🔎 Screen", key="screen_button")
+            if result is not None:
+                overall_num_instances += result["total_instances"]
+                overall_num_instances_rise += result["total_instances"] * result["success_rate"]/100
+                overall_change_percent += result["total_instances"] * result["avg_percentage_change"]
 
-            if screening_results.empty:
-                st.warning(
-                    "No signals detected for the selected tickers based on your screening criteria."
-                )
-        else:
-            st.error("Please select at least one stock ticker symbol.")
+                if result["common_dates"] is not None:
+                    # Create a new DataFrame for the new row
+                    new_row = pd.DataFrame(
+                        {
+                            "Ticker": [ticker],
+                            "Dates which fit conditions": [result["common_dates"]],
+                            "Total instances": result["total_instances"],
+                            f"% Chance stock rises {settings["x"]} days later": result["success_rate"],
+                            f"Avg change % {settings["x"]} days later": result["avg_percentage_change"],
+                        }
+                    )
+
+                    # Concatenate the new row with the existing DataFrame
+                    screening_results = pd.concat(
+                        [screening_results, new_row], ignore_index=True
+                    )
+
+                    # Update overall stats in frontend
+                    overall_success_rate_placeholder.metric("Overall Chance Rises X days later(%)", round(overall_num_instances_rise/overall_num_instances*100, 2))
+                    overall_change_percent_placeholder.metric("Overall Change percent X days later(%)", round(overall_change_percent/overall_num_instances, 2))
+                    overall_num_instances_placeholder.metric("Overall Number of instances", overall_num_instances)
+                    # Update the DataFrame in the frontend
+                    dataframe_placeholder.dataframe(screening_results, width=1000)
+
+
+        progress_text_placeholder.success(
+            f"Completed screening of {count}/{total_tickers} tickers"
+        )
+        progress_bar.empty()
+
+        # recreate screen button after complete
+        screen_button_placeholder.empty()
+        screen_button_placeholder.button("🔎 Screen", key="screen_button")
+
+        if screening_results.empty:
+            st.warning(
+                "No signals detected for the selected tickers based on your screening criteria."
+            )
+    else:
+        st.error("Please select at least one stock ticker symbol.")
