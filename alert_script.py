@@ -62,7 +62,7 @@ Avg price change 1mth later(%): {round(overall_change_percent/overall_num_instan
 Screen results (Ticker - Last Bull Raging Entry Date):
 {output_msg}
 """
-    tc.send_message(chat_id=27392018, message=output_msg)
+    return output_msg
 
 
 def alert_bull_appear():
@@ -114,12 +114,20 @@ Avg price change 1mth later(%): {round(overall_change_percent/overall_num_instan
 Screen results (Ticker - Last Bull Appear Entry Date):
 {output_msg}
 """
-
-    tc.send_message(chat_id=27392018, message=output_msg)
+    return output_msg
 
 
 if __name__ == "__main__":
-    tc.send_message(chat_id=27392018, message="Started screening for bull appear..")
-    alert_bull_appear()
-    tc.send_message(chat_id=27392018, message="Started screening for bull raging..")
-    alert_bull_raging()
+    for chat in chat_ids:
+        tc.send_message(chat_id=chat, message="Starting screening for bull appear..")
+    
+    bull_appear_msg = alert_bull_appear()
+
+    for chat in chat_ids:
+        tc.send_message(chat_id=chat, message=bull_appear_msg)
+        tc.send_message(chat_id=chat, message="Starting screening for bull raging..")
+    
+    bull_raging_msg = alert_bull_raging()
+    for chat in chat_ids:
+        tc.send_message(chat_id=chat, message=bull_raging_msg)
+    
