@@ -1,10 +1,9 @@
 matplotlib
 numpy
 pandas
-pyTelegramBotAPI==4.22.1
-streamlit==1.37.1
+pyTelegramBotAPI
+streamlit
 telebot
-tigeropen
 yfinance
 pytickersymbols
 PyYAML
