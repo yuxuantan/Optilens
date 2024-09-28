@@ -40,7 +40,7 @@ def ticker_input(key="ticker_input", default=None):
 def get_user_inputs(settings=None):
     if settings is None:
         settings = {
-            "tickers": [],
+            "tickers": ["ALL"],
             "indicator_settings": {
                 "golden_cross_sma": {
                     "is_enabled": False,
@@ -98,9 +98,13 @@ def get_user_inputs(settings=None):
                     "num_std_dev": 2,
                 },
             },
+            "show_win_rate": False,
+            "show_only_if_all_signals_met": True,
+            "show_only_market_price_above": 20,
             "recency": 5,
             "x": 20
         }
+
     if show_params == "apex":
         # settings["indicator_settings"]["apex_bear_raging"] = {
         #     "is_enabled": True,
@@ -145,26 +149,26 @@ def get_user_inputs(settings=None):
         #         st.caption(
         #             "Apex Bear Raging is a signal that occurs when there are majority bullish flush up bars, starting from more than 1/2 way since the latest bear trap, and reaches previous bull trap, rebounding back into the range"
         #         )
-        if indicator == "apex_bull_raging":
-            with st.expander("Apex Bull Raging Settings", expanded=False):
-                st.caption(
-                    "Apex Bull Raging is a signal that occurs when there are majority bearish flush down bars, starting from more than 1/2 way since the latest bull trap, and reaches previous bear trap, rebounding back into the range"
-                )
-        if indicator == "apex_uptrend":
-            with st.expander("Apex Uptrend Settings", expanded=False):
-                st.caption(
-                    "Apex Uptrend is a signal that occurs when there is lightning or M formation, above sma 50 and 200."
-                )
-        if indicator == "apex_downtrend":
-            with st.expander("Apex Downtrend Settings", expanded=False):
-                st.caption(
-                    "Apex Downtrend is a signal that occurs when there is N or W formation, below sma 50"
-                )
-        if indicator == "apex_bull_appear":
-            with st.expander("Apex Bull Appear Settings", expanded=False):
-                st.caption(
-                    "Apex Bull Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bullish bar (within up to 4 bars) after the wallaby, breaking from below Kangaroo Low, back into Kangaroo's price range."
-                )
+        # if indicator == "apex_bull_raging":
+        #     with st.expander("Apex Bull Raging Settings", expanded=False):
+        #         st.caption(
+        #             "Apex Bull Raging is a signal that occurs when there are majority bearish flush down bars, starting from more than 1/2 way since the latest bull trap, and reaches previous bear trap, rebounding back into the range"
+        #         )
+        # if indicator == "apex_uptrend":
+        #     with st.expander("Apex Uptrend Settings", expanded=False):
+        #         st.caption(
+        #             "Apex Uptrend is a signal that occurs when there is lightning or M formation, above sma 50 and 200."
+        #         )
+        # if indicator == "apex_downtrend":
+        #     with st.expander("Apex Downtrend Settings", expanded=False):
+        #         st.caption(
+        #             "Apex Downtrend is a signal that occurs when there is N or W formation, below sma 50"
+        #         )
+        # if indicator == "apex_bull_appear":
+        #     with st.expander("Apex Bull Appear Settings", expanded=False):
+        #         st.caption(
+        #             "Apex Bull Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bullish bar (within up to 4 bars) after the wallaby, breaking from below Kangaroo Low, back into Kangaroo's price range."
+        #         )
         # if indicator == "apex_bear_appear":
         #     with st.expander("Apex Bear Appear Settings", expanded=False):
         #         st.caption(
@@ -436,17 +440,45 @@ def get_user_inputs(settings=None):
     settings["recency"] = st.number_input(
         "Step 3: Select recency of signal (# trading days) to include in results ",
         min_value=1,
-        value=settings.get("recency", 1),
+        value=settings.get("recency", 5),
     )
 
 
-    # create input for user to select number of days to look forward to calculate success rate and % change
-    settings["x"] = st.number_input(
-        "Step 4: Select number of trading days to look forward for success rate and % change calculation",
-        min_value=1,
-        value=settings.get("x", 7),
-    )
+    with st.expander("Advanced Settings", expanded=False):
+        st.caption(
+            "Advanced settings for calculating success rate and % change"
+        )
+
+        settings["show_win_rate"] = st.checkbox("Show historical win rate (would result in roughly 10x slower analysis)", value=settings.get("show_win_rate", False))
+        
+
+        # create input for user to select number of days to look forward to calculate success rate and % change
+        if settings["show_win_rate"]:
+            settings["x"] = st.number_input(
+                "Select number of trading days to look forward for success rate and % change calculation",
+                min_value=1,
+                value=settings.get("x", 7),
+            )
+
+        
+        filter_market_price = st.checkbox(
+            "Filter by market price", 
+            value=settings.get("show_only_market_price_above", 0) != 0
+        )
+        if filter_market_price:
+            settings["show_only_market_price_above"] = st.number_input(
+                "Only screen stocks where current market price is above",
+                min_value=0,
+                value=settings.get("show_only_market_price_above", 0),
+            )
+
+        settings["show_only_if_all_signals_met"] = st.checkbox(
+            "Show only if all signals are met", value=settings.get("show_only_if_all_signals_met", True)
+        )
+
     return settings
+
+
 
 
 # with streamlit_analytics.track(unsafe_password="test123"):
@@ -520,33 +552,51 @@ if screen_button:
             )
 
             if result is not None:
-                overall_num_instances += result["total_instances"]
-                overall_num_instances_rise += result["total_instances"] * result["success_rate"]/100
-                overall_change_percent += result["total_instances"] * result["avg_percentage_change"]
+                if settings["show_win_rate"]:
+                    overall_num_instances += result["total_instances"]
+                    overall_num_instances_rise += result["total_instances"] * result["success_rate"]/100
+                    overall_change_percent += result["total_instances"] * result["avg_percentage_change"]
 
-                if result["common_dates"] is not None:
-                    # Create a new DataFrame for the new row
-                    new_row = pd.DataFrame(
-                        {
-                            "Ticker": [ticker],
-                            "Dates which fit conditions": [result["common_dates"]],
-                            "Total instances": result["total_instances"],
-                            f"% Chance stock rises {settings["x"]} days later": result["success_rate"],
-                            f"Avg change % {settings["x"]} days later": result["avg_percentage_change"],
-                        }
-                    )
+                    if result["common_dates"] is not None and len(result["common_dates"]) > 0:
+                        # Create a new DataFrame for the new row
+                        new_row = pd.DataFrame(
+                            {
+                                "Ticker": [ticker],
+                                "Dates which fit conditions": [result["common_dates"]],
+                                "Total instances": result["total_instances"],
+                                f"% Chance stock rises {settings["x"]} days later": result["success_rate"],
+                                f"Avg change % {settings["x"]} days later": result["avg_percentage_change"],
+                            }
+                        )
 
-                    # Concatenate the new row with the existing DataFrame
-                    screening_results = pd.concat(
-                        [screening_results, new_row], ignore_index=True
-                    )
+                        # Concatenate the new row with the existing DataFrame
+                        screening_results = pd.concat(
+                            [screening_results, new_row], ignore_index=True
+                        )
 
-                    # Update overall stats in frontend
-                    overall_success_rate_placeholder.metric("Overall Chance Rises X days later(%)", round(overall_num_instances_rise/overall_num_instances*100, 2))
-                    overall_change_percent_placeholder.metric("Overall Change percent X days later(%)", round(overall_change_percent/overall_num_instances, 2))
-                    overall_num_instances_placeholder.metric("Overall Number of instances", overall_num_instances)
-                    # Update the DataFrame in the frontend
-                    dataframe_placeholder.dataframe(screening_results, width=1000)
+                        # Update overall stats in frontend
+                        overall_success_rate_placeholder.metric("Overall Chance Rises X days later(%)", round(overall_num_instances_rise/overall_num_instances*100, 2))
+                        overall_change_percent_placeholder.metric("Overall Change percent X days later(%)", round(overall_change_percent/overall_num_instances, 2))
+                        overall_num_instances_placeholder.metric("Overall Number of instances", overall_num_instances)
+                        # Update the DataFrame in the frontend
+                        dataframe_placeholder.dataframe(screening_results, width=1000, hide_index=True)
+                else:
+                    if result["common_dates"] is not None and len(result["common_dates"]) > 0:
+                        # Create a new DataFrame for the new row
+                        new_row = pd.DataFrame(
+                            {
+                                "Ticker": [ticker],
+                                "Latest signal date": [result["common_dates"]],
+                            }
+                        )
+
+                        # Concatenate the new row with the existing DataFrame
+                        screening_results = pd.concat(
+                            [screening_results, new_row], ignore_index=True
+                        )
+
+                        # Update the DataFrame in the frontend
+                        dataframe_placeholder.dataframe(screening_results, width=1000, hide_index=True)
 
 
         progress_text_placeholder.success(

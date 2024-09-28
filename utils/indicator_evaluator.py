@@ -14,16 +14,18 @@ from utils.indicator_utils import (
 )
 
 
-def analyze_stock(ticker: str, settings: Dict[str, int], period: str = "max") -> List[str]:
+def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     """Analyze a stock and return notifications based on user preferences."""
     print(ticker)
-    data = tg.fetch_stock_data(ticker, period=period, interval="1d")
+    data = tg.fetch_stock_data(ticker, period="max", interval="1d")
 
     # if market price below 20, skip
-    if data.empty or data["Close"].iloc[-1] < 20:
-        print("Market price below 20, skipping")
+    if data.empty or data["Close"].iloc[-1] < settings["show_only_market_price_above"]:
+        print(
+            f"Market price below {settings["show_only_market_price_above"]}, skipping"
+        )
         return None
-    
+
     # Filter out indicator settings with is_enabled = False
     enabled_settings = {
         k: v for k, v in settings["indicator_settings"].items() if v["is_enabled"]
@@ -81,7 +83,7 @@ def analyze_stock(ticker: str, settings: Dict[str, int], period: str = "max") ->
                 data, config["window"], config["num_std_dev"]
             )
         elif indicator == "apex_bull_appear":
-            dates = get_apex_bull_appear_dates(data)
+            dates = get_apex_bull_appear_dates(data, settings["show_win_rate"])
         elif indicator == "apex_bear_appear":
             dates = get_apex_bear_appear_dates(data)
         elif indicator == "apex_uptrend":
@@ -99,10 +101,16 @@ def analyze_stock(ticker: str, settings: Dict[str, int], period: str = "max") ->
 
         indicator_dates[indicator] = dates
 
-    # Find common dates between all enabled indicators
-    common_dates = set(data.index)
-    for dates in indicator_dates.values():
-        common_dates.intersection_update(dates)
+    if settings["show_only_if_all_signals_met"]:
+        # Find common dates between all enabled indicators
+        common_dates = set(data.index)
+        for dates in indicator_dates.values():
+            common_dates.intersection_update(dates)
+    else:
+        # Find all dates where any one of the indicators are met
+        common_dates = set()
+        for dates in indicator_dates.values():
+            common_dates.update(dates)
 
     common_dates = sorted(common_dates)  # Sort dates for clarity
 
@@ -111,64 +119,74 @@ def analyze_stock(ticker: str, settings: Dict[str, int], period: str = "max") ->
     avg_percentage_change = 0
     valid_count = 0  # To keep track of how many valid instances we have
 
-    for date in common_dates:
-        index_of_date = data.index.get_loc(date)
+    response = None
 
-        if index_of_date + settings["x"] >= len(data.index):
-            continue
+    if settings["show_win_rate"]:
+        for date in common_dates:
+            index_of_date = data.index.get_loc(date)
+            if index_of_date + settings["x"] >= len(data.index):
+                print("Skipping because index out of bounds")
+                continue
 
-        target_date_for_metric_calculation = data.index[index_of_date + settings["x"]]
-        # Calculate the success rate based on provided logic
-        if (target_date_for_metric_calculation) in data.index and data.loc[
-            target_date_for_metric_calculation, "Close"
-        ] > data.loc[date, "Close"]:
-            success_count += 1
+            target_date_for_metric_calculation = data.index[
+                index_of_date + settings["x"]
+            ]
+            # Calculate the success rate based on provided logic
+            if (target_date_for_metric_calculation) in data.index and data.loc[
+                target_date_for_metric_calculation, "Close"
+            ] > data.loc[date, "Close"]:
+                success_count += 1
 
-        # Calculate the average percentage change
-        if date in data.index and target_date_for_metric_calculation in data.index:
-            try:
-                current_close = data.loc[date, "Close"]
-                future_close = data.loc[target_date_for_metric_calculation, "Close"]
-                percentage_change = (future_close - current_close) / current_close * 100
-                avg_percentage_change += percentage_change
-                valid_count += 1
-            except KeyError:
-                # Handle the case where 'Close' might not be in the DataFrame (unlikely but for completeness)
+            # Calculate the average percentage change
+            if date in data.index and target_date_for_metric_calculation in data.index:
+                try:
+                    current_close = data.loc[date, "Close"]
+                    future_close = data.loc[target_date_for_metric_calculation, "Close"]
+                    percentage_change = (
+                        (future_close - current_close) / current_close * 100
+                    )
+                    avg_percentage_change += percentage_change
+                    valid_count += 1
+                except KeyError:
+                    # Handle the case where 'Close' might not be in the DataFrame (unlikely but for completeness)
+                    print(
+                        f"Missing 'Close' price for date: {date} or {target_date_for_metric_calculation}"
+                    )
+            else:
                 print(
-                    f"Missing 'Close' price for date: {date} or {target_date_for_metric_calculation}"
+                    f"Date {date} or {target_date_for_metric_calculation} is not in the DataFrame"
                 )
-        else:
-            print(
-                f"Date {date} or {target_date_for_metric_calculation} is not in the DataFrame"
-            )
 
-    total_instances = len(common_dates)
-    success_rate = (success_count / total_instances * 100) if total_instances > 0 else 0
+        total_instances = len(common_dates)
+        success_rate = (
+            (success_count / valid_count * 100) if valid_count > 0 else 0
+        )
 
-    # Calculate the average percentage change if there are valid instances
-    avg_percentage_change = (
-        avg_percentage_change / valid_count if valid_count > 0 else 0
-    )
+        # Calculate the average percentage change if there are valid instances
+        avg_percentage_change = (
+            avg_percentage_change / valid_count if valid_count > 0 else 0
+        )
 
-    # if last date detected is after recency cutoff date, show it in the dataframe
-    if dates[-1] > recency_cutoff_date:
-        # Compile results
-        result = {
+        
+        
+        response = {
             "common_dates": [str(date) for date in common_dates],
             "total_instances": total_instances,
             "success_rate": success_rate,
             "avg_percentage_change": avg_percentage_change,
         }
-    else:
-        result = {
-            "common_dates": None,
-            "total_instances": total_instances,
-            "success_rate": success_rate,
-            "avg_percentage_change": avg_percentage_change,
+
+    else: #dont show win rate
+        # Compile results
+        response = {
+            "common_dates": [str(date) for date in common_dates],
         }
 
-    return result
+    # if not recent, override common_dates to None
+    if dates[-1] < recency_cutoff_date: 
+        response["common_dates"] = None
 
+    return response
 
 
 @st.cache_data(ttl="1d")
@@ -293,10 +311,10 @@ def get_apex_bull_raging_dates(data):
     # draw mid point between highest and stop loss zone. flush down must start before mid point or touch it
     # enter at bullish bar
 
+
 # @st.cache_data(ttl="1d")
 def get_apex_bear_raging_dates(data):
     print("TO DO LATER, fill in bear raging when bull raging is confirm to be working")
-
 
 
 # @st.cache_data(ttl="1d")
@@ -319,7 +337,6 @@ def get_apex_uptrend_dates(data):
             low_inflexion_points.append(agg_data.index[i])
 
     inflexion_points = sorted(high_inflexion_points + low_inflexion_points)
-    print(inflexion_points)
     inflexion_data = agg_data.loc[inflexion_points, ["High", "Low"]]
     inflexion_data = pd.DataFrame(inflexion_data)
 
@@ -554,8 +571,8 @@ def get_apex_downtrend_dates(data):
     return downtrend_dates
 
 
-# @st.cache_data(ttl="1d")
-def get_apex_bull_appear_dates(data):
+@st.cache_data(ttl="1d")
+def get_apex_bull_appear_dates(data, showWinRate):
     aggregated_data = get_2day_aggregated_data(data)
     if "Close" not in aggregated_data.columns:
         print("The 'Close' column is missing from the data. Skipping...")
@@ -563,6 +580,10 @@ def get_apex_bull_appear_dates(data):
     aggregated_data["SMA_20"] = aggregated_data["Close"].rolling(window=20).mean()
     aggregated_data["SMA_50"] = aggregated_data["Close"].rolling(window=50).mean()
     aggregated_data["SMA_200"] = aggregated_data["Close"].rolling(window=200).mean()
+
+    if not showWinRate:
+        # get only past 30 trading days of data (10 candles for 2d chart)
+        aggregated_data = aggregated_data.tail(30)
 
     # Find dates where the high of the current day is lower than the high of the previous day = Kangaroo wallaby formation
     condition = (aggregated_data["High"] < aggregated_data["High"].shift(1)) & (
@@ -593,7 +614,6 @@ def get_apex_bull_appear_dates(data):
         any_bar_went_below_kangaroo = False
         bullish_bar_went_back_up_to_range = False
 
-
         # Condition 1: 200 SMA should slope upwards
         if (
             kangaroo_pos + 5 < len(aggregated_data)
@@ -606,10 +626,17 @@ def get_apex_bull_appear_dates(data):
             print("Condition 1 met: 200 SMA slopes upwards")
 
         # Condition 2: Should be above 50 sma (roughly)
-        if aggregated_data["Low"].iloc[kangaroo_pos] > aggregated_data["SMA_50"].iloc[kangaroo_pos]:
-            print(f"Condition 2 met: K Low is above 50 sma: {aggregated_data['Low'].iloc[kangaroo_pos]} {aggregated_data['SMA_50'].iloc[kangaroo_pos]}")
+        if (
+            aggregated_data["Low"].iloc[kangaroo_pos]
+            > aggregated_data["SMA_50"].iloc[kangaroo_pos]
+        ):
+            print(
+                f"Condition 2 met: K Low is above 50 sma: {aggregated_data['Low'].iloc[kangaroo_pos]} {aggregated_data['SMA_50'].iloc[kangaroo_pos]}"
+            )
         else:
-            print(f"Condition 2 not met: K Low should be above 50 sma {aggregated_data['Low'].iloc[kangaroo_pos]} {aggregated_data['SMA_50'].iloc[kangaroo_pos]}")
+            print(
+                f"Condition 2 not met: K Low should be above 50 sma {aggregated_data['Low'].iloc[kangaroo_pos]} {aggregated_data['SMA_50'].iloc[kangaroo_pos]}"
+            )
             continue
 
         # Check the next 4 trading dates from wallaby date
@@ -687,7 +714,9 @@ def get_apex_bull_appear_dates(data):
                     <= curr_data["High"]
                 )
             ):
-                print(f"Condition 5b met: touches SMA 20, 50 or 200: {curr_data['Low']}, {curr_data['High']}")
+                print(
+                    f"Condition 5b met: touches SMA 20, 50 or 200: {curr_data['Low']}, {curr_data['High']}"
+                )
                 # print(f"SMAs are {aggregated_data["SMA_20"].iloc[curr_pos]}, {aggregated_data["SMA_50"].iloc[curr_pos]}, {aggregated_data["SMA_200"].iloc[curr_pos]}")
             else:
                 continue
