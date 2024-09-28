@@ -12,7 +12,7 @@ import utils.ticker_getter as tg
 #     st.write(st.session_state.email)
 # if "user_subscribed" in st.session_state:
 #     st.write(st.session_state.user_subscribed)
-# #after authentication, the email and subscription status is stored in session state
+# after authentication, the email and subscription status is stored in session state
 # add_auth(required=True)
 
 
@@ -98,8 +98,8 @@ def get_user_inputs(settings=None):
                     "num_std_dev": 2,
                 },
             },
-            "recency": 1,
-            "x": 7
+            "recency": 5,
+            "x": 20
         }
     if show_params == "apex":
         # settings["indicator_settings"]["apex_bear_raging"] = {
