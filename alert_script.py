@@ -2,10 +2,16 @@ import utils.indicator_evaluator as ie
 import utils.telegram_controller as tc
 import utils.ticker_getter as tg
 
+chat_ids = [
+    27392018, # me
+    432502167 # rainbow
+]
+
 stock_list = tg.get_all_tickers()
 # stock_list = tg.get_snp_500()
 screening_pool_msg = "⚙️ Screening pool: All stocks with market px above 20"
 chart_interval_msg = "⚙️ Chart Interval: 2D"
+
 
 def alert_bull_raging():
     settings = {
@@ -15,7 +21,7 @@ def alert_bull_raging():
             },
         },
         "recency": 5,
-        "x": 20
+        "x": 20,
     }
 
     overall_num_instances = 0
@@ -37,7 +43,9 @@ def alert_bull_raging():
             )
 
             if result["common_dates"] is not None:
-                output_msg = f"{output_msg}\n✅ *{ticker}* - {result['common_dates'][-1]}"
+                output_msg = (
+                    f"{output_msg}\n✅ *{ticker}* - {result['common_dates'][-1]}"
+                )
                 # Create a new DataFrame for the new row
 
     if output_msg == "":
@@ -55,7 +63,6 @@ Screen results (Ticker - Last Bull Raging Entry Date):
 {output_msg}
 """
     tc.send_message(chat_id=27392018, message=output_msg)
-    
 
 
 def alert_bull_appear():
@@ -66,7 +73,7 @@ def alert_bull_appear():
             },
         },
         "recency": 5,
-        "x": 20
+        "x": 20,
     }
 
     overall_num_instances = 0
@@ -88,7 +95,9 @@ def alert_bull_appear():
             )
 
             if result["common_dates"] is not None:
-                output_msg = f"{output_msg}\n✅ *{ticker}* - {result['common_dates'][-1]}"
+                output_msg = (
+                    f"{output_msg}\n✅ *{ticker}* - {result['common_dates'][-1]}"
+                )
                 # Create a new DataFrame for the new row
 
     if output_msg == "":
