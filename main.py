@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import utils.supabase as db
 import utils.indicator_evaluator as ie
+
 # import streamlit_analytics
 import utils.telegram_controller as tc
 import utils.ticker_getter as tg
@@ -23,6 +24,37 @@ all_tickers = tg.get_all_tickers()
 ticker_selection_options = all_tickers + ["ALL", "S&P 500", "Dow Jones"]
 # get url parameters
 show_params = st.query_params.get("show")
+
+# hack to run daily loading into cache on visiting this page optilens.streamlit.app?run_daily_refresh=yes_please
+run_daily_refresh = st.query_params.get("run_daily_refresh")
+if run_daily_refresh == "yes_please":
+    settings = {
+        "tickers": dow_jones_tickers,
+        "indicator_settings": {
+            "apex_bull_appear": {"is_enabled": True},
+            "apex_bull_raging": {"is_enabled": True},
+            "apex_uptrend": {"is_enabled": True},
+        },
+        "show_win_rate": False,
+        "show_only_if_all_signals_met": True,
+        "show_only_market_price_above": 20,
+        "recency": 5,
+        "x": 20,
+    }
+    if st.button("Stop daily refresh"):
+        st.stop()
+
+    progress_bar = st.progress(0)
+    progress_text_placeholder = st.empty()
+    for count, ticker in enumerate(settings["tickers"], start=1):
+        result = ie.analyze_stock(ticker, settings)
+        progress_bar.progress(count / len(settings["tickers"]))
+        progress_text_placeholder.header(f"Processing {count}/{len(settings['tickers'])}: {ticker}")
+    
+
+    
+    st.title("Daily refresh completed")
+
 
 # Function to display ticker input with autocomplete and multi-select
 def ticker_input(key="ticker_input", default=None):
@@ -102,7 +134,7 @@ def get_user_inputs(settings=None):
             "show_only_if_all_signals_met": True,
             "show_only_market_price_above": 20,
             "recency": 5,
-            "x": 20
+            "x": 20,
         }
 
     if show_params == "apex":
@@ -116,12 +148,11 @@ def get_user_inputs(settings=None):
             "is_enabled": False,
         }
         # settings["indicator_settings"]["apex_downtrend"] = {
-            # "is_enabled": True,
+        # "is_enabled": True,
         # }
         settings["indicator_settings"]["apex_bull_appear"] = {
             "is_enabled": False,
         }
-        
 
     # Use the ticker_input function for adding tickers
     settings["tickers"] = ticker_input(default=settings.get("tickers", []))
@@ -216,7 +247,9 @@ def get_user_inputs(settings=None):
                     st.number_input(
                         "Long SMA window for Death Cross:",
                         min_value=1,
-                        value=settings["indicator_settings"]["death_cross_sma"]["long_sma"],
+                        value=settings["indicator_settings"]["death_cross_sma"][
+                            "long_sma"
+                        ],
                     )
                 )
 
@@ -435,7 +468,7 @@ def get_user_inputs(settings=None):
                         ],
                     )
                 )
-    
+
     # recency of data to look at (int)
     settings["recency"] = st.number_input(
         "Step 3: Select recency of signal (# trading days) to include in results ",
@@ -443,14 +476,13 @@ def get_user_inputs(settings=None):
         value=settings.get("recency", 5),
     )
 
-
     with st.expander("Advanced Settings", expanded=False):
-        st.caption(
-            "Advanced settings for calculating success rate and % change"
-        )
+        st.caption("Advanced settings for calculating success rate and % change")
 
-        settings["show_win_rate"] = st.checkbox("Show historical win rate (would result in roughly 10x slower analysis)", value=settings.get("show_win_rate", False))
-        
+        settings["show_win_rate"] = st.checkbox(
+            "Show historical win rate (would result in roughly 10x slower analysis)",
+            value=settings.get("show_win_rate", False),
+        )
 
         # create input for user to select number of days to look forward to calculate success rate and % change
         if settings["show_win_rate"]:
@@ -460,10 +492,9 @@ def get_user_inputs(settings=None):
                 value=settings.get("x", 7),
             )
 
-        
         filter_market_price = st.checkbox(
-            "Filter by market price", 
-            value=settings.get("show_only_market_price_above", 0) != 0
+            "Filter by market price",
+            value=settings.get("show_only_market_price_above", 0) != 0,
         )
         if filter_market_price:
             settings["show_only_market_price_above"] = st.number_input(
@@ -473,12 +504,11 @@ def get_user_inputs(settings=None):
             )
 
         settings["show_only_if_all_signals_met"] = st.checkbox(
-            "Show only if all signals are met", value=settings.get("show_only_if_all_signals_met", True)
+            "Show only if all signals are met",
+            value=settings.get("show_only_if_all_signals_met", True),
         )
 
     return settings
-
-
 
 
 # with streamlit_analytics.track(unsafe_password="test123"):
@@ -491,8 +521,9 @@ feedback = st.sidebar.text_area("", height=100)
 submit_feedback = st.sidebar.button("Submit")
 if submit_feedback:
     tc.send_message(message="User feedback received: \n" + feedback)
-    st.sidebar.success(f"Feedback '{feedback}' submitted successfully. Thank you for your feedback!")
-
+    st.sidebar.success(
+        f"Feedback '{feedback}' submitted successfully. Thank you for your feedback!"
+    )
 
 
 # Get user inputs
@@ -547,25 +578,34 @@ if screen_button:
         for count, ticker in enumerate(settings["tickers"], start=1):
             result = ie.analyze_stock(ticker, settings)
             progress_bar.progress(count / total_tickers)
-            progress_text_placeholder.info(
-                f"Screening {count}/{total_tickers} tickers"
-            )
+            progress_text_placeholder.info(f"Screening {count}/{total_tickers} tickers")
 
             if result is not None:
                 if settings["show_win_rate"]:
                     overall_num_instances += result["total_instances"]
-                    overall_num_instances_rise += result["total_instances"] * result["success_rate"]/100
-                    overall_change_percent += result["total_instances"] * result["avg_percentage_change"]
+                    overall_num_instances_rise += (
+                        result["total_instances"] * result["success_rate"] / 100
+                    )
+                    overall_change_percent += (
+                        result["total_instances"] * result["avg_percentage_change"]
+                    )
 
-                    if result["common_dates"] is not None and len(result["common_dates"]) > 0:
+                    if (
+                        result["common_dates"] is not None
+                        and len(result["common_dates"]) > 0
+                    ):
                         # Create a new DataFrame for the new row
                         new_row = pd.DataFrame(
                             {
                                 "Ticker": [ticker],
-                                "Dates which fit conditions": [result["common_dates"]],
-                                "Total instances": result["total_instances"],
-                                f"% Chance stock rises {settings["x"]} days later": result["success_rate"],
-                                f"Avg change % {settings["x"]} days later": result["avg_percentage_change"],
+                                "Signal entry dates": [result["common_dates"]],
+                                "# Occurances": result["total_instances"],
+                                f"% Chance stock rises {settings["x"]} days later": result[
+                                    "success_rate"
+                                ],
+                                f"Avg change % {settings["x"]} days later": result[
+                                    "avg_percentage_change"
+                                ],
                             }
                         )
 
@@ -575,13 +615,31 @@ if screen_button:
                         )
 
                         # Update overall stats in frontend
-                        overall_success_rate_placeholder.metric("Overall Chance Rises X days later(%)", round(overall_num_instances_rise/overall_num_instances*100, 2))
-                        overall_change_percent_placeholder.metric("Overall Change percent X days later(%)", round(overall_change_percent/overall_num_instances, 2))
-                        overall_num_instances_placeholder.metric("Overall Number of instances", overall_num_instances)
+                        overall_success_rate_placeholder.metric(
+                            "Overall Chance Rises X days later(%)",
+                            round(
+                                overall_num_instances_rise
+                                / overall_num_instances
+                                * 100,
+                                2,
+                            ),
+                        )
+                        overall_change_percent_placeholder.metric(
+                            "Overall Change percent X days later(%)",
+                            round(overall_change_percent / overall_num_instances, 2),
+                        )
+                        overall_num_instances_placeholder.metric(
+                            "Overall Number of instances", overall_num_instances
+                        )
                         # Update the DataFrame in the frontend
-                        dataframe_placeholder.dataframe(screening_results, width=1000, hide_index=True)
+                        dataframe_placeholder.dataframe(
+                            screening_results, width=1000, hide_index=True
+                        )
                 else:
-                    if result["common_dates"] is not None and len(result["common_dates"]) > 0:
+                    if (
+                        result["common_dates"] is not None
+                        and len(result["common_dates"]) > 0
+                    ):
                         # Create a new DataFrame for the new row
                         new_row = pd.DataFrame(
                             {
@@ -596,8 +654,9 @@ if screen_button:
                         )
 
                         # Update the DataFrame in the frontend
-                        dataframe_placeholder.dataframe(screening_results, width=1000, hide_index=True)
-
+                        dataframe_placeholder.dataframe(
+                            screening_results, width=1000, hide_index=True
+                        )
 
         progress_text_placeholder.success(
             f"Completed screening of {count}/{total_tickers} tickers"

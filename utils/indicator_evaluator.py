@@ -83,7 +83,7 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
                 data, config["window"], config["num_std_dev"]
             )
         elif indicator == "apex_bull_appear":
-            dates = get_apex_bull_appear_dates(data, settings["show_win_rate"])
+            dates = get_apex_bull_appear_dates(data)
         elif indicator == "apex_bear_appear":
             dates = get_apex_bear_appear_dates(data)
         elif indicator == "apex_uptrend":
@@ -317,7 +317,7 @@ def get_apex_bear_raging_dates(data):
     print("TO DO LATER, fill in bear raging when bull raging is confirm to be working")
 
 
-# @st.cache_data(ttl="1d")
+@st.cache_data(ttl="1d")
 def get_apex_uptrend_dates(data):
     data["SMA_50"] = data["Close"].rolling(window=50).mean()
     data["SMA_200"] = data["Close"].rolling(window=200).mean()
@@ -572,7 +572,7 @@ def get_apex_downtrend_dates(data):
 
 
 @st.cache_data(ttl="1d")
-def get_apex_bull_appear_dates(data, showWinRate):
+def get_apex_bull_appear_dates(data):
     aggregated_data = get_2day_aggregated_data(data)
     if "Close" not in aggregated_data.columns:
         print("The 'Close' column is missing from the data. Skipping...")
@@ -581,10 +581,7 @@ def get_apex_bull_appear_dates(data, showWinRate):
     aggregated_data["SMA_50"] = aggregated_data["Close"].rolling(window=50).mean()
     aggregated_data["SMA_200"] = aggregated_data["Close"].rolling(window=200).mean()
 
-    if not showWinRate:
-        # get only past 30 trading days of data (10 candles for 2d chart)
-        aggregated_data = aggregated_data.tail(30)
-
+    
     # Find dates where the high of the current day is lower than the high of the previous day = Kangaroo wallaby formation
     condition = (aggregated_data["High"] < aggregated_data["High"].shift(1)) & (
         aggregated_data["Low"] > aggregated_data["Low"].shift(1)

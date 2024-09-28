@@ -123,3 +123,4 @@ yarl==1.9.4
 yfinance==0.2.43
 pytickersymbols
 PyYAML
+selenium
