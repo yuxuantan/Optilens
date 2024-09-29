@@ -14,8 +14,12 @@ url = "https://optilens.streamlit.app/?run_daily_refresh=yes_please"
 chrome_options = Options()
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--enable-javascript")  # Ensure JavaScript is enabled
+chrome_options.add_argument("--window-size=1920,1080")  # Set window size to ensure all content is visible
 chrome_options.add_argument("--no-sandbox")
 chrome_options.add_argument("--disable-dev-shm-usage")
+
+
 
 # Set up the WebDriver
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
@@ -23,11 +27,12 @@ driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), opti
 try:
     # Visit the URL
     driver.get(url)
-    
+
     # Wait until the "daily refresh completed" message appears
     while True:
         try:
             print("try")
+            # print(driver.page_source)
             progress_text = driver.find_element(By.TAG_NAME, "h2").text.lower()
             print(progress_text)
             completion_text = driver.find_element(By.TAG_NAME, "h1").text.lower()

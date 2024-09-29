@@ -7,27 +7,21 @@ import utils.indicator_evaluator as ie
 import utils.telegram_controller as tc
 import utils.ticker_getter as tg
 
-# from st_paywall import add_auth
-
-# if "email" in st.session_state:
-#     st.write(st.session_state.email)
-# if "user_subscribed" in st.session_state:
-#     st.write(st.session_state.user_subscribed)
-# after authentication, the email and subscription status is stored in session state
-# add_auth(required=True)
+import threading
+from fastapi import FastAPI
+import uvicorn
 
 
-dow_jones_tickers = tg.get_dow_jones()
-sp500_tickers = tg.get_snp_500()
-all_tickers = tg.get_all_tickers()
+# Create a FastAPI app instance
+app = FastAPI()
 
-ticker_selection_options = all_tickers + ["ALL", "S&P 500", "Dow Jones"]
-# get url parameters
-show_params = st.query_params.get("show")
+# Create a separate thread to run FastAPI alongside Streamlit
+def run_fastapi():
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
-# hack to run daily loading into cache on visiting this page optilens.streamlit.app?run_daily_refresh=yes_please
-run_daily_refresh = st.query_params.get("run_daily_refresh")
-if run_daily_refresh == "yes_please":
+@app.post("/refresh-cache")
+async def refresh_cache():
+    print("REFRESHING CACHE")
     settings = {
         "tickers": dow_jones_tickers,
         "indicator_settings": {
@@ -41,19 +35,26 @@ if run_daily_refresh == "yes_please":
         "recency": 5,
         "x": 20,
     }
-    if st.button("Stop daily refresh"):
-        st.stop()
 
-    progress_bar = st.progress(0)
-    progress_text_placeholder = st.empty()
     for count, ticker in enumerate(settings["tickers"], start=1):
         result = ie.analyze_stock(ticker, settings)
-        progress_bar.progress(count / len(settings["tickers"]))
-        progress_text_placeholder.header(f"Processing {count}/{len(settings['tickers'])}: {ticker}")
+        print(count / len(settings["tickers"]))
     
+    return {"status": "Cache refreshed successfully!"}
 
-    
-    st.title("Daily refresh completed")
+# Start FastAPI in a separate thread
+threading.Thread(target=run_fastapi, daemon=True).start()
+
+
+
+dow_jones_tickers = tg.get_dow_jones()
+sp500_tickers = tg.get_snp_500()
+all_tickers = tg.get_all_tickers()
+
+ticker_selection_options = all_tickers + ["ALL", "S&P 500", "Dow Jones"]
+# get url parameters
+show_params = st.query_params.get("show")
+
 
 
 # Function to display ticker input with autocomplete and multi-select
