@@ -21,9 +21,9 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
 
     # if market price below 20, skip
     if data.empty or data["Close"].iloc[-1] < settings["show_only_market_price_above"]:
-        print(
-            f"Market price below {settings["show_only_market_price_above"]}, skipping"
-        )
+        # print(
+        #     f"Market price below {settings["show_only_market_price_above"]}, skipping"
+        # )
         return None
 
     # Filter out indicator settings with is_enabled = False
@@ -158,17 +158,13 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
                 )
 
         total_instances = len(common_dates)
-        success_rate = (
-            (success_count / valid_count * 100) if valid_count > 0 else 0
-        )
+        success_rate = (success_count / valid_count * 100) if valid_count > 0 else 0
 
         # Calculate the average percentage change if there are valid instances
         avg_percentage_change = (
             avg_percentage_change / valid_count if valid_count > 0 else 0
         )
 
-        
-        
         response = {
             "common_dates": [str(date) for date in common_dates],
             "total_instances": total_instances,
@@ -176,14 +172,14 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
             "avg_percentage_change": avg_percentage_change,
         }
 
-    else: #dont show win rate
+    else:  # dont show win rate
         # Compile results
         response = {
             "common_dates": [str(date) for date in common_dates],
         }
 
     # if not recent, override common_dates to None
-    if dates[-1] < recency_cutoff_date: 
+    if dates[-1] < recency_cutoff_date:
         response["common_dates"] = None
 
     return response
@@ -581,7 +577,6 @@ def get_apex_bull_appear_dates(data):
     aggregated_data["SMA_50"] = aggregated_data["Close"].rolling(window=50).mean()
     aggregated_data["SMA_200"] = aggregated_data["Close"].rolling(window=200).mean()
 
-    
     # Find dates where the high of the current day is lower than the high of the previous day = Kangaroo wallaby formation
     condition = (aggregated_data["High"] < aggregated_data["High"].shift(1)) & (
         aggregated_data["Low"] > aggregated_data["Low"].shift(1)

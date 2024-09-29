@@ -644,7 +644,7 @@ if screen_button:
                         new_row = pd.DataFrame(
                             {
                                 "Ticker": [ticker],
-                                "Latest signal date": [result["common_dates"]],
+                                "Signal entry dates": [result["common_dates"]],
                             }
                         )
 

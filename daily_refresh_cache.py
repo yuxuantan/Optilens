@@ -8,7 +8,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 # visit optilens.streamlit.app?run_daily_refresh=yes_please using a browser and wait until daily refresh completed is shown in the html
 
 # url = "http://localhost:8501/?run_daily_refresh=yes_please"
-url = "http://optilens.streamlit.app?run_daily_refresh=yes_please"
+url = "https://optilens.streamlit.app/?run_daily_refresh=yes_please"
 
 # Set up Chrome options for headless mode
 chrome_options = Options()
@@ -27,14 +27,17 @@ try:
     # Wait until the "daily refresh completed" message appears
     while True:
         try:
+            print("try")
             progress_text = driver.find_element(By.TAG_NAME, "h2").text.lower()
             print(progress_text)
             completion_text = driver.find_element(By.TAG_NAME, "h1").text.lower()
             if "daily refresh completed" in completion_text:
                 print("Daily refresh completed")
                 break
-        except:
+        except Exception as e:
+            print("except")
+            # print(f"Error: {str(e)}")
             pass
-        time.sleep(2)  # Wait for 30 seconds before checking again
+        time.sleep(3)  # Wait for 30 seconds before checking again
 finally:
     driver.quit()

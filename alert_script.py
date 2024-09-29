@@ -30,7 +30,7 @@ chart_interval_msg = "⚙️ Chart Interval: 2D"
 
 
 def alert_bull_raging():
-    settings = shared_settings 
+    settings = shared_settings.copy()
     settings["indicator_settings"]["apex_bull_raging"]["is_enabled"] = True
 
     overall_num_instances = 0
@@ -76,7 +76,7 @@ Screen results (Ticker - Last Bull Raging Entry Date):
 
 
 def alert_bull_appear():
-    settings = shared_settings 
+    settings = shared_settings.copy()
     settings["indicator_settings"]["apex_bull_appear"]["is_enabled"] = True
     
 
