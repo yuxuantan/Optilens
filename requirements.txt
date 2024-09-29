@@ -7,7 +7,5 @@ telebot
 yfinance
 pytickersymbols
 PyYAML
-selenium
-webdriver_manager
 fastapi
 uvicorn
