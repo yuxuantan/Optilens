@@ -17,7 +17,7 @@ app = FastAPI()
 
 # Create a separate thread to run FastAPI alongside Streamlit
 def run_fastapi():
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)
 
 @app.post("/refresh-cache")
 async def refresh_cache():
