@@ -12,38 +12,38 @@ from fastapi import FastAPI
 import uvicorn
 
 
-# Create a FastAPI app instance
-app = FastAPI()
+# # Create a FastAPI app instance
+# app = FastAPI()
 
-# Create a separate thread to run FastAPI alongside Streamlit
-def run_fastapi():
-    uvicorn.run(app, host="0.0.0.0", port=8502)
+# # Create a separate thread to run FastAPI alongside Streamlit
+# def run_fastapi():
+#     uvicorn.run(app, host="0.0.0.0", port=8502)
 
-@app.post("/refresh-cache")
-async def refresh_cache():
-    print("REFRESHING CACHE")
-    settings = {
-        "tickers": dow_jones_tickers,
-        "indicator_settings": {
-            "apex_bull_appear": {"is_enabled": True},
-            "apex_bull_raging": {"is_enabled": True},
-            "apex_uptrend": {"is_enabled": True},
-        },
-        "show_win_rate": False,
-        "show_only_if_all_signals_met": True,
-        "show_only_market_price_above": 20,
-        "recency": 5,
-        "x": 20,
-    }
+# @app.post("/refresh-cache")
+# async def refresh_cache():
+#     print("REFRESHING CACHE")
+#     settings = {
+#         "tickers": dow_jones_tickers,
+#         "indicator_settings": {
+#             "apex_bull_appear": {"is_enabled": True},
+#             "apex_bull_raging": {"is_enabled": True},
+#             "apex_uptrend": {"is_enabled": True},
+#         },
+#         "show_win_rate": False,
+#         "show_only_if_all_signals_met": True,
+#         "show_only_market_price_above": 20,
+#         "recency": 5,
+#         "x": 20,
+#     }
 
-    for count, ticker in enumerate(settings["tickers"], start=1):
-        result = ie.analyze_stock(ticker, settings)
-        print(count / len(settings["tickers"]))
+#     for count, ticker in enumerate(settings["tickers"], start=1):
+#         result = ie.analyze_stock(ticker, settings)
+#         print(count / len(settings["tickers"]))
     
-    return {"status": "Cache refreshed successfully!"}
+#     return {"status": "Cache refreshed successfully!"}
 
-# Start FastAPI in a separate thread
-threading.Thread(target=run_fastapi, daemon=True).start()
+# # Start FastAPI in a separate thread
+# threading.Thread(target=run_fastapi, daemon=True).start()
 
 
 
