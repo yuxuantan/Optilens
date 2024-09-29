@@ -29,7 +29,7 @@ show_params = st.query_params.get("show")
 run_daily_refresh = st.query_params.get("run_daily_refresh")
 if run_daily_refresh == "yes_please":
     settings = {
-        "tickers": all_tickers,
+        "tickers": dow_jones_tickers,
         "indicator_settings": {
             "apex_bull_appear": {"is_enabled": True},
             "apex_bull_raging": {"is_enabled": True},
