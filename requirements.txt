@@ -7,6 +7,4 @@ telebot
 yfinance
 pytickersymbols
 PyYAML
-fastapi
-uvicorn
 supabase

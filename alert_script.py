@@ -25,6 +25,7 @@ shared_settings = {
 
 stock_list = tg.get_all_tickers()
 # stock_list = tg.get_snp_500()
+# stock_list = tg.get_dow_jones()
 screening_pool_msg = "⚙️ Screening pool: All stocks with market px above 20"
 chart_interval_msg = "⚙️ Chart Interval: 2D"
 
@@ -112,9 +113,6 @@ def alert_bull_appear():
 ⚙️ Recency: {settings['recency']} days
 {screening_pool_msg}
 {chart_interval_msg}
-
-Avg win rate (stock rise) 1mth later(%): {round(overall_num_instances_rise/overall_num_instances*100, 2)}
-Avg price change 1mth later(%): {round(overall_change_percent/overall_num_instances, 2)}
 
 Screen results (Ticker - Last Bull Appear Entry Date):
 {output_msg}
