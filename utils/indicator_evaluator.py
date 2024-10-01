@@ -1,6 +1,6 @@
 import pandas as pd
 from typing import List, Dict
-import streamlit as st
+# import streamlit as st
 from datetime import datetime
 import utils.ticker_getter as tg
 from utils.indicator_utils import (
@@ -12,6 +12,8 @@ from utils.indicator_utils import (
     find_bear_traps,
     find_bull_traps,
 )
+
+
 
 
 def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
@@ -185,7 +187,7 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     return response
 
 
-@st.cache_data(ttl="1d")
+# @st.cache_data(ttl="1d")
 def get_apex_bull_raging_dates(data, show_win_rate=True):
     data = get_2day_aggregated_data(data)
     if not show_win_rate:
@@ -315,7 +317,7 @@ def get_apex_bear_raging_dates(data):
     print("TO DO LATER, fill in bear raging when bull raging is confirm to be working")
 
 
-@st.cache_data(ttl="1d")
+# @st.cache_data(ttl="1d")
 def get_apex_uptrend_dates(data):
     data["SMA_50"] = data["Close"].rolling(window=50).mean()
     data["SMA_200"] = data["Close"].rolling(window=200).mean()
@@ -569,7 +571,7 @@ def get_apex_downtrend_dates(data):
     return downtrend_dates
 
 
-@st.cache_data(ttl="1d")
+# @st.cache_data(ttl="1d")
 def get_apex_bull_appear_dates(data, show_win_rate = True):
     aggregated_data = get_2day_aggregated_data(data)
 
