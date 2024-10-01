@@ -23,9 +23,9 @@ shared_settings = {
     }
 }
 
-# stock_list = tg.get_all_tickers()
+stock_list = tg.get_all_tickers()
 # stock_list = tg.get_snp_500()
-stock_list = tg.get_dow_jones()
+# stock_list = tg.get_dow_jones()
 screening_pool_msg = "⚙️ Screening pool: All stocks with market px above 20"
 chart_interval_msg = "⚙️ Chart Interval: 2D"
 
