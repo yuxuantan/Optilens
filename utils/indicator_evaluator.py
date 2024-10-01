@@ -94,8 +94,8 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
             # dates = get_apex_downtrend_dates(data)
         elif indicator == "apex_bull_raging":
             dates = get_apex_bull_raging_dates(data, settings["show_win_rate"])
-        # elif indicator == "apex_bear_raging":
-            # dates = get_apex_bear_raging_dates(data)
+        elif indicator == "apex_bear_raging":
+            dates = get_apex_bear_raging_dates(data)
 
         # if no dates are found
         if dates is None or len(dates) == 0:
@@ -191,7 +191,7 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
 def get_apex_bull_raging_dates(data, show_win_rate=True):
     data = get_2day_aggregated_data(data)
     if not show_win_rate:
-        data = data.tail(30) #TODO: make this configurable
+        data = data.tail(210) #TODO: make this configurable
 
     high_inflexion_points = get_high_inflexion_points(data)
     potential_bear_traps = get_low_inflexion_points(data)
@@ -313,8 +313,88 @@ def get_apex_bull_raging_dates(data, show_win_rate=True):
 
 
 # @st.cache_data(ttl="1d")
+# TODO: FIX THIS. confirm is wrong because nothing comes up
 def get_apex_bear_raging_dates(data):
-    print("TO DO LATER, fill in bear raging when bull raging is confirm to be working")
+    data = get_2day_aggregated_data(data)
+
+    low_inflexion_points = get_low_inflexion_points(data)
+    potential_bull_traps = get_high_inflexion_points(data)
+
+    future_bull_traps = potential_bull_traps.copy()
+
+    bear_raging_dates = []
+
+    for low_point in low_inflexion_points:
+        low_point_date, low_point_value = low_point
+
+        if low_point_date not in data.index:
+            continue
+
+        stopping_point_date = next(
+            (
+                trap[0]
+                for trap in future_bull_traps
+                if trap[0] > low_point_date and trap[1] > low_point_value
+            ),
+            data.index[-1],
+        )
+        future_bull_traps = [
+            trap for trap in future_bull_traps if trap[0] >= low_point_date
+        ]
+
+
+        previous_bull_trap = find_highest_bull_trap_within_price_range(
+            tuple(potential_bull_traps),
+            low_point_date,
+            data.loc[stopping_point_date]["Low"],
+            low_point_value,
+        )
+
+        if previous_bull_trap is None:
+            # print("❌ no previous bear trap found")
+            continue
+        # print(f"previous_bear_trap: {previous_bear_trap}")
+
+        mid_point = (
+            previous_bull_trap[1] + (low_point_value - previous_bull_trap[1]) / 2
+        )
+
+        # Analyze the range from high point to stopping point
+        range_data = data.loc[low_point_date:stopping_point_date]
+        flush_up_mask = (range_data["Close"] - range_data["Open"]) > 0.7 * (
+            range_data["High"] - range_data["Low"]
+        )
+        flush_up_bars = range_data[flush_up_mask]
+
+        if flush_up_bars.empty or flush_up_bars.iloc[0]["Low"] < mid_point:
+            continue
+        
+        break_above_bull_trap = range_data.index[
+            range_data["High"] > previous_bull_trap[1]
+        ]
+        if break_above_bull_trap.empty:
+            continue
+        date_which_broke_above_bull_trap = break_above_bull_trap[0]
+
+        total_bar_count = len(range_data)
+        flush_up_count = flush_up_mask.sum()
+        if total_bar_count < 5 or flush_up_count / total_bar_count < 0.3:
+            continue
+            
+        post_break_data = data.loc[date_which_broke_above_bull_trap:].head(6)
+        for i, (date, row) in enumerate(post_break_data.iterrows(), 1):
+            if row["Close"] < previous_bull_trap[1] and (
+                row["Open"] - row["Close"] > 0.5 * (row["High"] - row["Low"])
+                or (
+                    row["Open"] < row["High"] - 4 / 5 * (row["High"] - row["Low"])
+                    and row["Close"] < row["High"] - 4 / 5 * (row["High"] - row["Low"])
+                )
+            ):
+                bear_raging_dates.append(date)
+                break
+
+    return bear_raging_dates
+
 
 
 # @st.cache_data(ttl="1d")
@@ -576,7 +656,7 @@ def get_apex_bull_appear_dates(data, show_win_rate = True):
     aggregated_data = get_2day_aggregated_data(data)
 
     if not show_win_rate:
-        aggregated_data = aggregated_data.tail(30) #TODO: make this configurable
+        aggregated_data = aggregated_data.tail(210) #TODO: make this configurable
 
     if "Close" not in aggregated_data.columns:
         # print("The 'Close' column is missing from the data. Skipping...")

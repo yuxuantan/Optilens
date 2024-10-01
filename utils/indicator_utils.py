@@ -112,10 +112,6 @@ def find_bull_traps(potential_traps, from_date, to_date):
 #         active_traps.append(trap)
     
 #     return min(active_traps, key=lambda x: x[1]) if active_traps else None
-
-def find_highest_bull_trap_within_price_range(potential_bull_traps, low_point_date, low_price, high_price):
-    valid_traps = [trap for trap in potential_bull_traps if trap[0] < low_point_date and low_price < trap[1] < high_price]
-    return max(valid_traps, key=lambda x: x[1]) if valid_traps else None
     
 
 
@@ -126,10 +122,18 @@ def find_lowest_bear_trap_within_price_range(potential_traps, up_to_date, low_pr
     # Filter bear traps up to the given date
     bear_traps_up_to_date = find_bear_traps(potential_traps, from_date=from_date, to_date=up_to_date)
     
-    # For each bear trap, check if it has been invalidated by a higher high
     for date, low in bear_traps_up_to_date:
         # Bear trap is valid
         if low_price <= low <= high_price:
             return(date, low)
     
 
+def find_highest_bull_trap_within_price_range(potential_traps, up_to_date, low_price, high_price):
+    from_date = up_to_date - pd.DateOffset(years=1)
+    # Filter bull traps up to the given date
+    bull_traps_up_to_date = find_bull_traps(potential_traps, from_date=from_date, to_date=up_to_date)
+
+    for date, high in bull_traps_up_to_date:
+        # Bull trap is valid
+        if low_price <= high <= high_price:
+            return(date, high)
