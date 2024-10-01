@@ -1,4 +1,4 @@
-name: Run alerting script
+name: Run bull appear alerting script
 
 on:
   schedule:
@@ -25,4 +25,4 @@ jobs:
           pip install -r requirements.txt
 
       - name: execute py script # run main.py
-        run: python alert_script.py
+        run: python alert_bull_appear.py

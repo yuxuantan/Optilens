@@ -45,23 +45,23 @@ def get_low_inflexion_points(data):
     all_low_inflexion_points = []
     for i in range(2, len(data) - 2):
         if (
-            data["Low"][i - 1] > data["Low"][i] and data["Low"][i] < data["Low"][i + 1]
+            data.iloc[i - 1]["Low"] > data.iloc[i]["Low"] < data.iloc[i + 1]["Low"]
         ) and (
-            data["Low"][i - 2] > data["Low"][i] and data["Low"][i] < data["Low"][i + 2]
+            data.iloc[i - 2]["Low"] > data.iloc[i]["Low"] < data.iloc[i + 2]["Low"]
         ):
-            all_low_inflexion_points.append((data.index[i], data["Low"][i]))
+            all_low_inflexion_points.append((data.index[i], data.iloc[i]["Low"]))
     return all_low_inflexion_points
 
 
 def get_high_inflexion_points(data):
     all_high_inflexion_points = []
-    for i in range(1, len(data) - 2):
+    for i in range(2, len(data) - 2):
         if (
-            (data["High"][i - 1] < data["High"][i] and data["High"][i] > data["High"][i + 1])
+            (data.iloc[i - 1]["High"] < data.iloc[i]["High"] > data.iloc[i + 1]["High"])
             and 
-            (data["High"][i - 2] < data["High"][i] and data["High"][i] > data["High"][i + 2])
+            (data.iloc[i - 2]["High"] < data.iloc[i]["High"] > data.iloc[i + 2]["High"])
         ):
-            all_high_inflexion_points.append((data.index[i], data["High"][i]))
+            all_high_inflexion_points.append((data.index[i], data.iloc[i]["High"]))
     return all_high_inflexion_points
 
 

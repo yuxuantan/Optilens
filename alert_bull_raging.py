@@ -23,9 +23,9 @@ shared_settings = {
     }
 }
 
-stock_list = tg.get_all_tickers()
+# stock_list = tg.get_all_tickers()
 # stock_list = tg.get_snp_500()
-# stock_list = tg.get_dow_jones()
+stock_list = tg.get_dow_jones()
 screening_pool_msg = "⚙️ Screening pool: All stocks with market px above 20"
 chart_interval_msg = "⚙️ Chart Interval: 2D"
 
@@ -39,9 +39,11 @@ def alert_bull_raging():
     overall_change_percent = 0
 
     output_msg = ""
-
+    
+    counter = 0
     for ticker in stock_list:
-        print(f"Analyzing {ticker}")
+        counter += 1
+        print(f"Analyzing #{counter}/{len(stock_list)}: {ticker}")
         result = ie.analyze_stock(ticker, settings)
 
         if result is not None:
@@ -76,60 +78,7 @@ Screen results (Ticker - Last Bull Raging Entry Date):
     return output_msg
 
 
-def alert_bull_appear():
-    settings = shared_settings.copy()
-    settings["indicator_settings"]["apex_bull_appear"]["is_enabled"] = True
-    
-
-    overall_num_instances = 0
-    overall_num_instances_rise = 0
-    overall_change_percent = 0
-
-    output_msg = ""
-
-    for ticker in stock_list:
-        print(f"Analyzing {ticker}")
-        result = ie.analyze_stock(ticker, settings)
-        if result is not None:
-            if settings["show_win_rate"]:
-                overall_num_instances += result["total_instances"]
-                overall_num_instances_rise += (
-                    result["total_instances"] * result["success_rate"] / 100
-                )
-                overall_change_percent += (
-                    result["total_instances"] * result["avg_percentage_change"]
-                )
-
-            if result["common_dates"] is not None:
-                output_msg = (
-                    f"{output_msg}\n✅ *{ticker}* - {result['common_dates'][-1]}"
-                )
-                # Create a new DataFrame for the new row
-
-    if output_msg == "":
-        output_msg = "No stocks found matching the criteria"
-
-    output_msg = f""" *Bull appear screening completed*
-⚙️ Recency: {settings['recency']} days
-{screening_pool_msg}
-{chart_interval_msg}
-
-Screen results (Ticker - Last Bull Appear Entry Date):
-{output_msg}
-"""
-    return output_msg
-
 
 if __name__ == "__main__":
-    for chat in chat_ids:
-        tc.send_message(chat_id=chat, message="Starting screening for bull appear..")
-
-    bull_appear_msg = alert_bull_appear()
-
-    for chat in chat_ids:
-        tc.send_message(chat_id=chat, message=bull_appear_msg)
-        tc.send_message(chat_id=chat, message="Starting screening for bull raging..")
-
     bull_raging_msg = alert_bull_raging()
-    for chat in chat_ids:
-        tc.send_message(chat_id=chat, message=bull_raging_msg)
+    tc.send_message(chat_ids, message=bull_raging_msg)
