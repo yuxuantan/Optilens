@@ -94,8 +94,8 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
                 data, config["window"], config["num_std_dev"]
             )
         elif indicator == "apex_bull_appear":
-            dates = fetch_cached_data_from_supabase("apex_bull_appear")
-            # dates = get_apex_bull_appear_dates(data, settings["show_win_rate"])
+            # dates = fetch_cached_data_from_supabase("apex_bull_appear")
+            dates = get_apex_bull_appear_dates(data, settings["show_win_rate"])
         # elif indicator == "apex_bear_appear":
             # dates = get_apex_bear_appear_dates(data)
         elif indicator == "apex_uptrend":
