@@ -3,6 +3,7 @@ from typing import List, Dict
 import streamlit as st
 from datetime import datetime
 import utils.ticker_getter as tg
+
 from utils.indicator_utils import (
     get_2day_aggregated_data,
     get_high_inflexion_points,
@@ -13,9 +14,17 @@ from utils.indicator_utils import (
     find_bull_traps,
 )
 
+# from supabase import create_client, Client
+# def fetch_cached_data_from_supabase(table):
+#     url: str = st.secrets["SUPABASE_URL"]
+#     key: str = st.secrets["SUPABASE_KEY"]
+#     supabase: Client = create_client(url, key)
+#     response = supabase.table(table).select("*").execute()
+#     return response.data
 
 
 
+# TODO: make it such that we fetch all the tickers data in one go
 def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     """Analyze a stock and return notifications based on user preferences."""
     # print(ticker)
@@ -85,7 +94,8 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
                 data, config["window"], config["num_std_dev"]
             )
         elif indicator == "apex_bull_appear":
-            dates = get_apex_bull_appear_dates(data, settings["show_win_rate"])
+            dates = fetch_cached_data_from_supabase("apex_bull_appear")
+            # dates = get_apex_bull_appear_dates(data, settings["show_win_rate"])
         # elif indicator == "apex_bear_appear":
             # dates = get_apex_bear_appear_dates(data)
         elif indicator == "apex_uptrend":
@@ -651,7 +661,7 @@ def get_apex_downtrend_dates(data):
     return downtrend_dates
 
 
-# @st.cache_data(ttl="1d")
+@st.cache_data(ttl="1d")
 def get_apex_bull_appear_dates(data, show_win_rate = True):
     aggregated_data = get_2day_aggregated_data(data)
 
