@@ -187,7 +187,7 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
     return response
 
 
-# @st.cache_data(ttl="1d")
+@st.cache_data(ttl="1d")
 def get_apex_bull_raging_dates(data, show_win_rate=True):
     data = get_2day_aggregated_data(data)
     if not show_win_rate:
@@ -817,7 +817,7 @@ def get_apex_bull_appear_dates(data, show_win_rate = True):
     return pd.DatetimeIndex(bull_appear_dates)
 
 
-# @st.cache_data(ttl="1d")
+@st.cache_data(ttl="1d")
 def get_apex_bear_appear_dates(data):
     print("PENDING BULL APPEAR TO BE ACCURATE, THEN COPY OVER")
 
