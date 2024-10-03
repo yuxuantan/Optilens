@@ -11,7 +11,7 @@ dow_jones_tickers = tg.get_dow_jones()
 sp500_tickers = tg.get_snp_500()
 all_tickers = tg.get_all_tickers()
 
-ticker_selection_options = all_tickers + ["ALL", "S&P 500", "Dow Jones"]
+ticker_selection_options = all_tickers + ["Everything", "S&P 500", "Dow Jones"]
 # get url parameters
 show_params = st.query_params.get("show")
 
@@ -24,7 +24,7 @@ def ticker_input(key="ticker_input", default=None):
         options=ticker_selection_options,
         key=key,
         default=default,
-        placeholder="'ALL', 'S&P 500', 'Dow Jones' or add individual stock tickers",
+        placeholder="'Everything', 'S&P 500', 'Dow Jones' or add individual stock tickers",
     )
     return selected_tickers
 
@@ -33,7 +33,7 @@ def ticker_input(key="ticker_input", default=None):
 def get_user_inputs(settings=None):
     if settings is None:
         settings = {
-            "tickers": ["ALL"],
+            "tickers": ["Everything"],
             "indicator_settings": {
                 "golden_cross_sma": {
                     "is_enabled": False,
@@ -117,9 +117,9 @@ def get_user_inputs(settings=None):
 
     # Use the ticker_input function for adding tickers
     settings["tickers"] = ticker_input(default=settings.get("tickers", []))
-    if "ALL" in settings["tickers"]:
-        # TODO: remove all other tickers from the list if "ALL" is chosen
-        settings["tickers"] = all_tickers  # Select all tickers if "ALL" is chosen
+    if "Everything" in settings["tickers"]:
+        # TODO: remove all other tickers from the list if "Everything" is chosen
+        settings["tickers"] = all_tickers  # Select all tickers if "Everything" is chosen
     if "S&P 500" in settings["tickers"]:
         settings["tickers"] = sp500_tickers
     if "Dow Jones" in settings["tickers"]:
