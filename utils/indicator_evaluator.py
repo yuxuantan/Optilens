@@ -1,6 +1,6 @@
 import pandas as pd
 from typing import List, Dict
-# import streamlit as st
+import streamlit as st
 from datetime import datetime
 import utils.ticker_getter as tg
 from utils.indicator_utils import (
