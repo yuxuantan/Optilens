@@ -93,7 +93,7 @@ def get_user_inputs(settings=None):
             "show_win_rate": False,
             "show_only_if_all_signals_met": True,
             "show_only_latest_close_price_above": 20,
-            "recency": 5,
+            "recency": 2,
             "min_num_instances": 0,
             "x": 20,
         }
