@@ -513,10 +513,10 @@ if screen_button:
 
         st.divider()
         st.header("Screening Results")
-        progress_bar = st.progress(0)
+        # progress_bar = st.progress(0)
         total_tickers = len(settings["tickers"])
 
-        progress_text_placeholder = st.empty()
+        # progress_text_placeholder = st.empty()
         screening_results = pd.DataFrame(columns=["Ticker"])
 
         # Placeholder for overall probability calc
@@ -541,89 +541,99 @@ if screen_button:
 
         # Placeholder for the DataFrame that will be updated
         dataframe_placeholder = st.empty()
-        result = ie.analyze_everything(settings)
-        # print result as dataframe
-        if result is not None:
-            # change result to dataframe
-            result = pd.DataFrame(result)
-            # filter results by recency
-            from datetime import datetime, timedelta
 
-            # Calculate the date 'settings.recency' days ago from today
-            recency_date = datetime.now() - timedelta(days=settings["recency"])
+        with st.status("Screening ...", expanded=True) as status:
+            result = ie.analyze_everything(settings)
+            
+            # print result as dataframe
+            if result is not None:
+                # change result to dataframe
+                result = pd.DataFrame(result)
+                # filter results by recency
+                from datetime import datetime, timedelta
 
-            # Filter results to only include data where the last common_date is after 'recency_date'
-            result = result[
-                result["common_dates"].apply(
-                    lambda x: len(x) > 0
-                    and datetime.strptime(x[-1], "%Y-%m-%d") >= recency_date
+                # Calculate the date 'settings.recency' days ago from today
+                recency_date = datetime.now() - timedelta(days=settings["recency"])
+
+                # Filter results to only include data where the last common_date is after 'recency_date'
+                result = result[
+                    result["common_dates"].apply(
+                        lambda x: len(x) > 0
+                        and datetime.strptime(x[-1], "%Y-%m-%d") >= recency_date
+                    )
+                ]
+                # Filter results to only include data where the total_instances >= settings["min_num_instances"]
+                result = result[
+                    result["total_instances"] >= settings["min_num_instances"]
+                ]
+
+                # Filter results to only include data where the latestClosePrice >= settings["show_only_latest_close_price_above"]
+                result = result[
+                    result["latest_close_price"]
+                    >= settings["show_only_latest_close_price_above"]
+                ]
+
+                # Filter results to only include data where the volume >= settings["show_only_volume_above"]
+                result = result[
+                    result["volume_on_latest_signal"]
+                    >= settings["show_only_volume_above"]
+                ]
+
+                # Calculate overall success rate and change percent
+                overall_num_instances = result["total_instances"].sum()
+                overall_num_instances_rise_1D = result["total_success_count_1D"].sum()
+                overall_change_percent_1D = result["total_percentage_change_1D"].sum()
+                overall_num_instances_rise_5D = result["total_success_count_5D"].sum()
+                overall_change_percent_5D = result["total_percentage_change_5D"].sum()
+                overall_num_instances_rise_20D = result["total_success_count_20D"].sum()
+                overall_change_percent_20D = result["total_percentage_change_20D"].sum()
+
+                overall_success_rate_1D_placeholder.metric(
+                    "1D Success Rate",
+                    f"{round(overall_num_instances_rise_1D/overall_num_instances*100, 2)}%",
                 )
-            ]
-            # Filter results to only include data where the total_instances >= settings["min_num_instances"]
-            result = result[result["total_instances"] >= settings["min_num_instances"]]
+                overall_change_percent_1D_placeholder.metric(
+                    "1D Change %",
+                    f"{round(overall_change_percent_1D/overall_num_instances, 2)}%",
+                )
+                overall_success_rate_5D_placeholder.metric(
+                    "5D Success Rate",
+                    f"{round(overall_num_instances_rise_5D/overall_num_instances*100, 2)}%",
+                )
+                overall_change_percent_5D_placeholder.metric(
+                    "5D Change %",
+                    f"{round(overall_change_percent_5D/overall_num_instances, 2)}%",
+                )
+                overall_success_rate_20D_placeholder.metric(
+                    "20D Success Rate",
+                    f"{round(overall_num_instances_rise_20D/overall_num_instances*100, 2)}%",
+                )
+                overall_change_percent_20D_placeholder.metric(
+                    "20D Change %",
+                    f"{round(overall_change_percent_20D/overall_num_instances, 2)}%",
+                )
 
-            # Filter results to only include data where the latestClosePrice >= settings["show_only_latest_close_price_above"]
-            result = result[
-                result["latest_close_price"]
-                >= settings["show_only_latest_close_price_above"]
-            ]
+                # Only show the latest common_date
+                result["common_dates"] = result["common_dates"].apply(
+                    lambda x: x[-1] if len(x) > 0 else ""
+                )
 
-            # Filter results to only include data where the volume >= settings["show_only_volume_above"]
-            result = result[result["volume_on_latest_signal"] >= settings["show_only_volume_above"]]
+                # rename common_dates to latest_signal_entry_date
+                result.rename(
+                    columns={"common_dates": "latest_signal_entry_date"}, inplace=True
+                )
 
-            # Calculate overall success rate and change percent
-            overall_num_instances = result["total_instances"].sum()
-            overall_num_instances_rise_1D = result["total_success_count_1D"].sum()
-            overall_change_percent_1D = result["total_percentage_change_1D"].sum()
-            overall_num_instances_rise_5D = result["total_success_count_5D"].sum()
-            overall_change_percent_5D = result["total_percentage_change_5D"].sum()
-            overall_num_instances_rise_20D = result["total_success_count_20D"].sum()
-            overall_change_percent_20D = result["total_percentage_change_20D"].sum()
+                dataframe_placeholder.dataframe(result, width=1000, hide_index=True)
 
-            overall_success_rate_1D_placeholder.metric(
-                "1D Success Rate",
-                f"{round(overall_num_instances_rise_1D/overall_num_instances*100, 2)}%",
-            )
-            overall_change_percent_1D_placeholder.metric(
-                "1D Change %",
-                f"{round(overall_change_percent_1D/overall_num_instances, 2)}%",
-            )
-            overall_success_rate_5D_placeholder.metric(
-                "5D Success Rate",
-                f"{round(overall_num_instances_rise_5D/overall_num_instances*100, 2)}%",
-            )
-            overall_change_percent_5D_placeholder.metric(
-                "5D Change %",
-                f"{round(overall_change_percent_5D/overall_num_instances, 2)}%",
-            )
-            overall_success_rate_20D_placeholder.metric(
-                "20D Success Rate",
-                f"{round(overall_num_instances_rise_20D/overall_num_instances*100, 2)}%",
-            )
-            overall_change_percent_20D_placeholder.metric(
-                "20D Change %",
-                f"{round(overall_change_percent_20D/overall_num_instances, 2)}%",
-            )
+                # stop screening and remove the progress bar
+                # progress_bar.empty()
+                # progress_text_placeholder.empty()
 
-            # Only show the latest common_date
-            result["common_dates"] = result["common_dates"].apply(
-                lambda x: x[-1] if len(x) > 0 else ""
-            )
+                # recreate screen button after complete
+                screen_button_placeholder.empty()
+                screen_button_placeholder.button("Reset", key="reset_btn")
+                status.update(label="Screening completed! ", state="complete", expanded=False)
 
-            # rename common_dates to latest_signal_entry_date
-            result.rename(
-                columns={"common_dates": "latest_signal_entry_date"}, inplace=True
-            )
-
-            dataframe_placeholder.dataframe(result, width=1000, hide_index=True)
-
-            # stop screening and remove the progress bar
-            progress_bar.empty()
-            progress_text_placeholder.empty()
-
-            # recreate screen button after complete
-            screen_button_placeholder.empty()
-            screen_button_placeholder.button("🔎 Screen", key="screen_button")
 
     else:
         st.error("Please select at least one stock ticker symbol.")
