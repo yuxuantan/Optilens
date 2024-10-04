@@ -3,6 +3,12 @@ import streamlit as st
 
 # response = supabase.table("countries").select("*").execute()
 
+def fetch_cached_data_from_supabase(table):
+    url: str = st.secrets["SUPABASE_URL"]
+    key: str = st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(url, key)
+    response = supabase.table(table).select("*").execute()
+    return response.data
 
 def fetch_configs():
     url: str = st.secrets["SUPABASE_URL"]

@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import utils.supabase as db
+
 import utils.indicator_evaluator as ie
 
 # import streamlit_analytics
@@ -14,7 +14,6 @@ all_tickers = tg.get_all_tickers()
 ticker_selection_options = all_tickers + ["Everything", "S&P 500", "Dow Jones"]
 # get url parameters
 show_params = st.query_params.get("show")
-
 
 
 # Function to display ticker input with autocomplete and multi-select
@@ -93,8 +92,9 @@ def get_user_inputs(settings=None):
             },
             "show_win_rate": False,
             "show_only_if_all_signals_met": True,
-            "show_only_market_price_above": 20,
+            "show_only_latest_close_price_above": 20,
             "recency": 5,
+            "min_num_instances": 0,
             "x": 20,
         }
 
@@ -112,14 +112,16 @@ def get_user_inputs(settings=None):
         # "is_enabled": True,
         # }
         settings["indicator_settings"]["apex_bull_appear"] = {
-            "is_enabled": False,
+            "is_enabled": True,
         }
 
     # Use the ticker_input function for adding tickers
     settings["tickers"] = ticker_input(default=settings.get("tickers", []))
     if "Everything" in settings["tickers"]:
         # TODO: remove all other tickers from the list if "Everything" is chosen
-        settings["tickers"] = all_tickers  # Select all tickers if "Everything" is chosen
+        settings["tickers"] = (
+            all_tickers  # Select all tickers if "Everything" is chosen
+        )
     if "S&P 500" in settings["tickers"]:
         settings["tickers"] = sp500_tickers
     if "Dow Jones" in settings["tickers"]:
@@ -438,34 +440,20 @@ def get_user_inputs(settings=None):
     )
 
     with st.expander("Advanced Settings", expanded=False):
-        st.caption("Advanced settings for calculating success rate and % change")
-
-        settings["show_win_rate"] = st.checkbox(
-            "Show historical win rate (would result in roughly 10x slower analysis)",
-            value=settings.get("show_win_rate", False),
+        settings["min_num_instances"] = st.number_input(
+            "Minimum number of past signals for the ticker to be included in results",
+            min_value=0,
+            value=settings.get("min_num_instances", 0),
         )
 
-        # create input for user to select number of days to look forward to calculate success rate and % change
-        if settings["show_win_rate"]:
-            settings["x"] = st.number_input(
-                "Select number of trading days to look forward for success rate and % change calculation",
-                min_value=1,
-                value=settings.get("x", 7),
-            )
-
-        filter_market_price = st.checkbox(
-            "Filter by market price",
-            value=settings.get("show_only_market_price_above", 0) != 0,
+        settings["show_only_latest_close_price_above"] = st.number_input(
+            "Only screen stocks where latest closing price is above",
+            min_value=0,
+            value=settings.get("show_only_latest_close_price_above", 0),
         )
-        if filter_market_price:
-            settings["show_only_market_price_above"] = st.number_input(
-                "Only screen stocks where current market price is above",
-                min_value=0,
-                value=settings.get("show_only_market_price_above", 0),
-            )
 
         settings["show_only_if_all_signals_met"] = st.checkbox(
-            "Show only if all signals are met",
+            "Show only if all indicator signals are met",
             value=settings.get("show_only_if_all_signals_met", True),
         )
 
@@ -525,112 +513,107 @@ if screen_button:
         screening_results = pd.DataFrame(columns=["Ticker"])
 
         # Placeholder for overall probability calc
-        overall_success_rate_placeholder = st.empty()
-        overall_change_percent_placeholder = st.empty()
-        overall_num_instances_placeholder = st.empty()
+        col1, col2, col3 = st.columns(3)
+        col4, col5, col6 = st.columns(3)
+
+        overall_success_rate_1D_placeholder = col1.empty()
+        overall_change_percent_1D_placeholder = col4.empty()
+        overall_success_rate_5D_placeholder = col2.empty()
+        overall_change_percent_5D_placeholder = col5.empty()
+        overall_success_rate_20D_placeholder = col3.empty()
+        overall_change_percent_20D_placeholder = col6.empty()
 
         overall_num_instances = 0
-        overall_num_instances_rise = 0
-        overall_change_percent = 0
+
+        overall_num_instances_rise_1D = 0
+        overall_change_percent_1D = 0
+        overall_num_instances_rise_5D = 0
+        overall_change_percent_5D = 0
+        overall_num_instances_rise_20D = 0
+        overall_change_percent_20D = 0
 
         # Placeholder for the DataFrame that will be updated
         dataframe_placeholder = st.empty()
+        result = ie.analyze_everything(settings)
+        # print result as dataframe
+        if result is not None:
+            # change result to dataframe
+            result = pd.DataFrame(result)
+            # filter results by recency
+            from datetime import datetime, timedelta
 
-        for count, ticker in enumerate(settings["tickers"], start=1):
-            result = ie.analyze_stock(ticker, settings)
-            progress_bar.progress(count / total_tickers)
-            progress_text_placeholder.info(f"Screening {count}/{total_tickers} tickers")
+            # Calculate the date 'settings.recency' days ago from today
+            recency_date = datetime.now() - timedelta(days=settings["recency"])
 
-            if result is not None:
-                if settings["show_win_rate"]:
-                    overall_num_instances += result["total_instances"]
-                    overall_num_instances_rise += (
-                        result["total_instances"] * result["success_rate"] / 100
-                    )
-                    overall_change_percent += (
-                        result["total_instances"] * result["avg_percentage_change"]
-                    )
+            # Filter results to only include data where the last common_date is after 'recency_date'
+            result = result[
+                result["common_dates"].apply(
+                    lambda x: len(x) > 0
+                    and datetime.strptime(x[-1], "%Y-%m-%d") >= recency_date
+                )
+            ]
+            # Filter results to only include data where the total_instances >= settings["min_num_instances"]
+            result = result[result["total_instances"] >= settings["min_num_instances"]]
 
-                    if (
-                        result["common_dates"] is not None
-                        and len(result["common_dates"]) > 0
-                    ):
-                        # Create a new DataFrame for the new row
-                        new_row = pd.DataFrame(
-                            {
-                                "Ticker": [ticker],
-                                "Signal entry dates": [result["common_dates"]],
-                                "# Occurances": result["total_instances"],
-                                f"% Chance stock rises {settings["x"]} days later": result[
-                                    "success_rate"
-                                ],
-                                f"Avg change % {settings["x"]} days later": result[
-                                    "avg_percentage_change"
-                                ],
-                            }
-                        )
+            # Filter results to only include data where the latestClosePrice >= settings["show_only_latest_close_price_above"]
+            result = result[
+                result["latest_close_price"]
+                >= settings["show_only_latest_close_price_above"]
+            ]
 
-                        # Concatenate the new row with the existing DataFrame
-                        screening_results = pd.concat(
-                            [screening_results, new_row], ignore_index=True
-                        )
+            # Calculate overall success rate and change percent
+            overall_num_instances = result["total_instances"].sum()
+            overall_num_instances_rise_1D = result["total_success_count_1D"].sum()
+            overall_change_percent_1D = result["total_percentage_change_1D"].sum()
+            overall_num_instances_rise_5D = result["total_success_count_5D"].sum()
+            overall_change_percent_5D = result["total_percentage_change_5D"].sum()
+            overall_num_instances_rise_20D = result["total_success_count_20D"].sum()
+            overall_change_percent_20D = result["total_percentage_change_20D"].sum()
 
-                        # Update overall stats in frontend
-                        overall_success_rate_placeholder.metric(
-                            "Overall Chance Rises X days later(%)",
-                            round(
-                                overall_num_instances_rise
-                                / overall_num_instances
-                                * 100,
-                                2,
-                            ),
-                        )
-                        overall_change_percent_placeholder.metric(
-                            "Overall Change percent X days later(%)",
-                            round(overall_change_percent / overall_num_instances, 2),
-                        )
-                        overall_num_instances_placeholder.metric(
-                            "Overall Number of instances", overall_num_instances
-                        )
-                        # Update the DataFrame in the frontend
-                        dataframe_placeholder.dataframe(
-                            screening_results, width=1000, hide_index=True
-                        )
-                else:
-                    if (
-                        result["common_dates"] is not None
-                        and len(result["common_dates"]) > 0
-                    ):
-                        # Create a new DataFrame for the new row
-                        new_row = pd.DataFrame(
-                            {
-                                "Ticker": [ticker],
-                                "Signal entry dates": [result["common_dates"]],
-                            }
-                        )
-
-                        # Concatenate the new row with the existing DataFrame
-                        screening_results = pd.concat(
-                            [screening_results, new_row], ignore_index=True
-                        )
-
-                        # Update the DataFrame in the frontend
-                        dataframe_placeholder.dataframe(
-                            screening_results, width=1000, hide_index=True
-                        )
-
-        progress_text_placeholder.success(
-            f"Completed screening of {count}/{total_tickers} tickers"
-        )
-        progress_bar.empty()
-
-        # recreate screen button after complete
-        screen_button_placeholder.empty()
-        screen_button_placeholder.button("🔎 Screen", key="screen_button")
-
-        if screening_results.empty:
-            st.warning(
-                "No signals detected for the selected tickers based on your screening criteria."
+            overall_success_rate_1D_placeholder.metric(
+                "1D Success Rate",
+                f"{round(overall_num_instances_rise_1D/overall_num_instances*100, 2)}%",
             )
+            overall_change_percent_1D_placeholder.metric(
+                "1D Change %",
+                f"{round(overall_change_percent_1D/overall_num_instances, 2)}%",
+            )
+            overall_success_rate_5D_placeholder.metric(
+                "5D Success Rate",
+                f"{round(overall_num_instances_rise_5D/overall_num_instances*100, 2)}%",
+            )
+            overall_change_percent_5D_placeholder.metric(
+                "5D Change %",
+                f"{round(overall_change_percent_5D/overall_num_instances, 2)}%",
+            )
+            overall_success_rate_20D_placeholder.metric(
+                "20D Success Rate",
+                f"{round(overall_num_instances_rise_20D/overall_num_instances*100, 2)}%",
+            )
+            overall_change_percent_20D_placeholder.metric(
+                "20D Change %",
+                f"{round(overall_change_percent_20D/overall_num_instances, 2)}%",
+            )
+
+            # Only show the latest common_date
+            result["common_dates"] = result["common_dates"].apply(
+                lambda x: x[-1] if len(x) > 0 else ""
+            )
+
+            # rename common_dates to latest_signal_entry_date
+            result.rename(
+                columns={"common_dates": "latest_signal_entry_date"}, inplace=True
+            )
+
+            dataframe_placeholder.dataframe(result, width=1000, hide_index=True)
+
+            # stop screening and remove the progress bar
+            progress_bar.empty()
+            progress_text_placeholder.empty()
+
+            # recreate screen button after complete
+            screen_button_placeholder.empty()
+            screen_button_placeholder.button("🔎 Screen", key="screen_button")
+
     else:
         st.error("Please select at least one stock ticker symbol.")

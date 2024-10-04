@@ -3,6 +3,7 @@ from typing import List, Dict
 import streamlit as st
 from datetime import datetime
 import utils.ticker_getter as tg
+import utils.supabase as db
 
 from utils.indicator_utils import (
     get_2day_aggregated_data,
@@ -14,13 +15,94 @@ from utils.indicator_utils import (
     find_bull_traps,
 )
 
-# from supabase import create_client, Client
-# def fetch_cached_data_from_supabase(table):
-#     url: str = st.secrets["SUPABASE_URL"]
-#     key: str = st.secrets["SUPABASE_KEY"]
-#     supabase: Client = create_client(url, key)
-#     response = supabase.table(table).select("*").execute()
-#     return response.data
+def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str]]]:
+    enabled_settings = {
+        k: v for k, v in settings["indicator_settings"].items() if v["is_enabled"]
+    }
+    data = []
+    for indicator, config in enabled_settings.items():
+
+        if indicator == "apex_bull_appear":
+            data = db.fetch_cached_data_from_supabase("apex_bull_appear")
+            
+    # step 1; return all data.analysis keys as array
+
+    # for each ticker, 
+    response = []
+    for ticker_data in data:
+
+        total_instances = len(ticker_data["analysis"].keys())
+        total_success_count_1D = 0
+        total_percentage_change_1D = 0
+        total_success_count_5D = 0
+        total_percentage_change_5D = 0
+        total_success_count_20D = 0
+        total_percentage_change_20D = 0
+        # calculate success rate and avg percentage change
+        for date_key in ticker_data["analysis"]:
+            date_value = ticker_data["analysis"][date_key]
+            # Calculate the success rate based on provided logic
+            if date_value["change1TD"] is not None:
+                if date_value["change1TD"] > 0:
+                    total_success_count_1D += 1
+                total_percentage_change_1D += date_value["change1TD"]
+
+            if date_value["change5TD"] is not None:
+                if date_value["change5TD"] > 0:
+                    total_success_count_5D += 1
+                total_percentage_change_5D += date_value["change5TD"]
+
+            if date_value["change20TD"] is not None: 
+                if date_value["change20TD"] > 0:
+                    total_success_count_20D += 1
+                total_percentage_change_20D += date_value["change20TD"]
+
+        success_rate_1D = (total_success_count_1D / total_instances * 100) if total_instances > 0 else 0
+
+        avg_percentage_change_1D = (
+            total_percentage_change_1D / total_instances if total_instances > 0 else 0
+        )
+
+        success_rate_5D = (total_success_count_5D / total_instances * 100) if total_instances > 0 else 0
+
+        avg_percentage_change_5D = (
+            total_percentage_change_5D / total_instances if total_instances > 0 else 0
+        )
+
+        success_rate_20D = (total_success_count_20D / total_instances * 100) if total_instances > 0 else 0
+
+        avg_percentage_change_20D = (
+            total_percentage_change_20D / total_instances if total_instances > 0 else 0
+        )
+            
+
+
+        response.append({
+            "ticker": ticker_data["ticker"],
+            "common_dates": list(ticker_data["analysis"].keys()),
+            "total_instances": len(ticker_data["analysis"].keys()),
+            "success_rate_1D": success_rate_1D,
+            "avg_percentage_change_1D": avg_percentage_change_1D,
+            "success_rate_5D": success_rate_5D,
+            "avg_percentage_change_5D": avg_percentage_change_5D,
+            "success_rate_20D": success_rate_20D,
+            "avg_percentage_change_20D": avg_percentage_change_20D,
+            "latest_close_price": ticker_data["latestClosePrice"],
+            "total_success_count_1D": total_success_count_1D,
+            "total_success_count_5D": total_success_count_5D,
+            "total_success_count_20D": total_success_count_20D,
+            "total_percentage_change_1D": total_percentage_change_1D,
+            "total_percentage_change_5D": total_percentage_change_5D,
+            "total_percentage_change_20D": total_percentage_change_20D,
+        })
+          
+    # TODO: get common data, (because we have option to display/ calculate only when all selected signals are met)
+    return response
+
+    
+
+
+
 
 
 
