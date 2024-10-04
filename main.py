@@ -93,6 +93,7 @@ def get_user_inputs(settings=None):
             "show_win_rate": False,
             "show_only_if_all_signals_met": True,
             "show_only_latest_close_price_above": 20,
+            "show_only_volume_above": 100000,
             "recency": 2,
             "min_num_instances": 0,
             "x": 20,
@@ -457,6 +458,12 @@ def get_user_inputs(settings=None):
             value=settings.get("show_only_if_all_signals_met", True),
         )
 
+        settings["show_only_volume_above"] = st.number_input(
+            "Only show stocks where volume is above",
+            min_value=0,
+            value=settings.get("show_only_volume_above", 100000),
+        )
+
     return settings
 
 
@@ -560,6 +567,9 @@ if screen_button:
                 result["latest_close_price"]
                 >= settings["show_only_latest_close_price_above"]
             ]
+
+            # Filter results to only include data where the volume >= settings["show_only_volume_above"]
+            result = result[result["volume_on_latest_signal"] >= settings["show_only_volume_above"]]
 
             # Calculate overall success rate and change percent
             overall_num_instances = result["total_instances"].sum()

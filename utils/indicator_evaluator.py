@@ -15,22 +15,21 @@ from utils.indicator_utils import (
     find_bull_traps,
 )
 
+
 def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str]]]:
     enabled_settings = {
         k: v for k, v in settings["indicator_settings"].items() if v["is_enabled"]
     }
     data = []
     for indicator, config in enabled_settings.items():
-
         if indicator == "apex_bull_appear":
             data = db.fetch_cached_data_from_supabase("apex_bull_appear")
-            
+
     # step 1; return all data.analysis keys as array
 
-    # for each ticker, 
+    # for each ticker,
     response = []
     for ticker_data in data:
-
         total_instances = len(ticker_data["analysis"].keys())
         total_success_count_1D = 0
         total_percentage_change_1D = 0
@@ -38,6 +37,7 @@ def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str
         total_percentage_change_5D = 0
         total_success_count_20D = 0
         total_percentage_change_20D = 0
+
         # calculate success rate and avg percentage change
         for date_key in ticker_data["analysis"]:
             date_value = ticker_data["analysis"][date_key]
@@ -52,58 +52,67 @@ def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str
                     total_success_count_5D += 1
                 total_percentage_change_5D += date_value["change5TD"]
 
-            if date_value["change20TD"] is not None: 
+            if date_value["change20TD"] is not None:
                 if date_value["change20TD"] > 0:
                     total_success_count_20D += 1
                 total_percentage_change_20D += date_value["change20TD"]
 
-        success_rate_1D = (total_success_count_1D / total_instances * 100) if total_instances > 0 else 0
+        success_rate_1D = (
+            (total_success_count_1D / total_instances * 100)
+            if total_instances > 0
+            else 0
+        )
 
         avg_percentage_change_1D = (
             total_percentage_change_1D / total_instances if total_instances > 0 else 0
         )
 
-        success_rate_5D = (total_success_count_5D / total_instances * 100) if total_instances > 0 else 0
+        success_rate_5D = (
+            (total_success_count_5D / total_instances * 100)
+            if total_instances > 0
+            else 0
+        )
 
         avg_percentage_change_5D = (
             total_percentage_change_5D / total_instances if total_instances > 0 else 0
         )
 
-        success_rate_20D = (total_success_count_20D / total_instances * 100) if total_instances > 0 else 0
+        success_rate_20D = (
+            (total_success_count_20D / total_instances * 100)
+            if total_instances > 0
+            else 0
+        )
 
         avg_percentage_change_20D = (
             total_percentage_change_20D / total_instances if total_instances > 0 else 0
         )
-            
 
+        response.append(
+            {
+                "ticker": ticker_data["ticker"],
+                "common_dates": list(ticker_data["analysis"].keys()),
+                "volume_on_latest_signal": ticker_data["analysis"]
+                .get(next(reversed(ticker_data["analysis"]), None), {})
+                .get("volume", None),
+                "latest_close_price": ticker_data["latestClosePrice"],
+                "total_instances": len(ticker_data["analysis"].keys()),
+                "success_rate_1D": success_rate_1D,
+                "avg_percentage_change_1D": avg_percentage_change_1D,
+                "success_rate_5D": success_rate_5D,
+                "avg_percentage_change_5D": avg_percentage_change_5D,
+                "success_rate_20D": success_rate_20D,
+                "avg_percentage_change_20D": avg_percentage_change_20D,
+                "total_success_count_1D": total_success_count_1D,
+                "total_success_count_5D": total_success_count_5D,
+                "total_success_count_20D": total_success_count_20D,
+                "total_percentage_change_1D": total_percentage_change_1D,
+                "total_percentage_change_5D": total_percentage_change_5D,
+                "total_percentage_change_20D": total_percentage_change_20D,
+            }
+        )
 
-        response.append({
-            "ticker": ticker_data["ticker"],
-            "common_dates": list(ticker_data["analysis"].keys()),
-            "total_instances": len(ticker_data["analysis"].keys()),
-            "success_rate_1D": success_rate_1D,
-            "avg_percentage_change_1D": avg_percentage_change_1D,
-            "success_rate_5D": success_rate_5D,
-            "avg_percentage_change_5D": avg_percentage_change_5D,
-            "success_rate_20D": success_rate_20D,
-            "avg_percentage_change_20D": avg_percentage_change_20D,
-            "latest_close_price": ticker_data["latestClosePrice"],
-            "total_success_count_1D": total_success_count_1D,
-            "total_success_count_5D": total_success_count_5D,
-            "total_success_count_20D": total_success_count_20D,
-            "total_percentage_change_1D": total_percentage_change_1D,
-            "total_percentage_change_5D": total_percentage_change_5D,
-            "total_percentage_change_20D": total_percentage_change_20D,
-        })
-          
     # TODO: get common data, (because we have option to display/ calculate only when all selected signals are met)
     return response
-
-    
-
-
-
-
 
 
 # TODO: make it such that we fetch all the tickers data in one go
@@ -179,11 +188,11 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
             # dates = fetch_cached_data_from_supabase("apex_bull_appear")
             dates = get_apex_bull_appear_dates(data, settings["show_win_rate"])
         # elif indicator == "apex_bear_appear":
-            # dates = get_apex_bear_appear_dates(data)
+        # dates = get_apex_bear_appear_dates(data)
         elif indicator == "apex_uptrend":
             dates = get_apex_uptrend_dates(data)
         # elif indicator == "apex_downtrend":
-            # dates = get_apex_downtrend_dates(data)
+        # dates = get_apex_downtrend_dates(data)
         elif indicator == "apex_bull_raging":
             dates = get_apex_bull_raging_dates(data, settings["show_win_rate"])
         elif indicator == "apex_bear_raging":
@@ -283,7 +292,7 @@ def analyze_stock(ticker: str, settings: Dict[str, int]) -> List[str]:
 def get_apex_bull_raging_dates(data, show_win_rate=True):
     data = get_2day_aggregated_data(data)
     if not show_win_rate:
-        data = data.tail(210) #TODO: make this configurable
+        data = data.tail(210)  # TODO: make this configurable
 
     high_inflexion_points = get_high_inflexion_points(data)
     potential_bear_traps = get_low_inflexion_points(data)
@@ -386,7 +395,7 @@ def get_apex_bull_raging_dates(data, show_win_rate=True):
                 bull_raging_dates.append(date)
                 break
             # else:
-                # print(f"❌ check bar {i}, no bullish bar closing above stop loss zone")
+            # print(f"❌ check bar {i}, no bullish bar closing above stop loss zone")
 
     return bull_raging_dates
 
@@ -434,7 +443,6 @@ def get_apex_bear_raging_dates(data):
             trap for trap in future_bull_traps if trap[0] >= low_point_date
         ]
 
-
         previous_bull_trap = find_highest_bull_trap_within_price_range(
             tuple(potential_bull_traps),
             low_point_date,
@@ -460,7 +468,7 @@ def get_apex_bear_raging_dates(data):
 
         if flush_up_bars.empty or flush_up_bars.iloc[0]["Low"] < mid_point:
             continue
-        
+
         break_above_bull_trap = range_data.index[
             range_data["High"] > previous_bull_trap[1]
         ]
@@ -472,7 +480,7 @@ def get_apex_bear_raging_dates(data):
         flush_up_count = flush_up_mask.sum()
         if total_bar_count < 5 or flush_up_count / total_bar_count < 0.3:
             continue
-            
+
         post_break_data = data.loc[date_which_broke_above_bull_trap:].head(6)
         for i, (date, row) in enumerate(post_break_data.iterrows(), 1):
             if row["Close"] < previous_bull_trap[1] and (
@@ -486,7 +494,6 @@ def get_apex_bear_raging_dates(data):
                 break
 
     return bear_raging_dates
-
 
 
 # @st.cache_data(ttl="1d")
@@ -744,11 +751,11 @@ def get_apex_downtrend_dates(data):
 
 
 @st.cache_data(ttl="1d")
-def get_apex_bull_appear_dates(data, show_win_rate = True):
+def get_apex_bull_appear_dates(data, show_win_rate=True):
     aggregated_data = get_2day_aggregated_data(data)
 
     if not show_win_rate:
-        aggregated_data = aggregated_data.tail(210) #TODO: make this configurable
+        aggregated_data = aggregated_data.tail(210)  # TODO: make this configurable
 
     if "Close" not in aggregated_data.columns:
         # print("The 'Close' column is missing from the data. Skipping...")
