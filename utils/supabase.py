@@ -14,7 +14,7 @@ def get_secret(key: str) -> str:
         value = st.secrets.get(key)
     except FileNotFoundError: 
         value = os.getenv(key)
-        
+
     if not value:
         raise ValueError(f"Secret '{key}' not found.")
     return value
@@ -23,16 +23,10 @@ def get_secret(key: str) -> str:
 def fetch_cached_data_from_supabase(table):
     supabase: Client = get_supabase_client()
     response = supabase.table(table).select("*").execute()
-    if response.error:
-        st.error(f"Error fetching data from {table}: {response.error.message}")
-        return None
     return response.data
 
 # Insert or update data
 def upsert_data_to_supabase(table, data):
     supabase: Client = get_supabase_client()
     response = supabase.table(table).upsert(data).execute()
-    if response.error:
-        st.error(f"Error upserting data to {table}: {response.error.message}")
-        return None
     return response.data
