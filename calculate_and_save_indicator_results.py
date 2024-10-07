@@ -1,7 +1,7 @@
 import utils.ticker_getter as tg
 import utils.indicator_evaluator as ie
 import utils.supabase as db
-
+import pandas as pd
 def calculate_and_save_indicator_results():
     stock_list = tg.get_all_tickers()
     # fetch all tickers
@@ -41,6 +41,7 @@ def calculate_and_save_indicator_results():
         if ticker in tickers_to_screen_bull_appear:
             dates_bull_appear = ie.get_apex_bull_appear_dates(data)
             analysis_result_bull_appear = get_analysis_results(dates_bull_appear, data)
+            analysis_result_bull_appear = convert_to_serializable(analysis_result_bull_appear)
             db.upsert_data_to_supabase('apex_bull_appear', {'ticker': ticker, 'analysis': analysis_result_bull_appear, 'created_at': 'now()'})
             print(f"Upserted bull appear analysis for {ticker}")
             tickers_screened_bull_appear += 1
@@ -48,6 +49,7 @@ def calculate_and_save_indicator_results():
         if ticker in tickers_to_screen_bull_raging:
             dates_bull_raging = ie.get_apex_bull_raging_dates(data)
             analysis_result_bull_raging = get_analysis_results(dates_bull_raging, data)
+            analysis_result_bull_raging = convert_to_serializable(analysis_result_bull_raging)
             db.upsert_data_to_supabase('apex_bull_raging', {'ticker': ticker, 'analysis': analysis_result_bull_raging, 'created_at': 'now()'})
             print(f"Upserted bull raging analysis for {ticker}")
             tickers_screened_bull_raging += 1
@@ -55,6 +57,7 @@ def calculate_and_save_indicator_results():
         if ticker in tickers_to_screen_bear_appear:
             dates_bear_appear = ie.get_apex_bear_appear_dates(data)
             analysis_result_bear_appear = get_analysis_results(dates_bear_appear, data)
+            analysis_result_bear_appear = convert_to_serializable(analysis_result_bear_appear)
             db.upsert_data_to_supabase('apex_bear_appear', {'ticker': ticker, 'analysis': analysis_result_bear_appear, 'created_at': 'now()'})
             print(f"Upserted bear appear analysis for {ticker}")
             tickers_screened_bear_appear += 1
@@ -82,5 +85,20 @@ def get_analysis_results(dates, data):
             analysis_results[date_str]['close'] = data.iloc[date_index]['Close']
     
     return analysis_results
-    
+
+def convert_to_serializable(data):
+    if isinstance(data, dict):
+        return {k: convert_to_serializable(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [convert_to_serializable(i) for i in data]
+    elif isinstance(data, pd.Timestamp):
+        return data.isoformat()
+    elif isinstance(data, np.int64):
+        return int(data)
+    elif isinstance(data, np.float64):
+        return float(data)
+    else:
+        return data
+
+calculate_and_save_indicator_results()
 calculate_and_save_indicator_results()
