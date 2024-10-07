@@ -10,7 +10,11 @@ def get_supabase_client() -> Client:
 
 # Helper function to get secret keys
 def get_secret(key: str) -> str:
-    value = st.secrets.get(key) or os.getenv(key)
+    try:
+        value = st.secrets.get(key)
+    except FileNotFoundError: 
+        value = os.getenv(key)
+        
     if not value:
         raise ValueError(f"Secret '{key}' not found.")
     return value
