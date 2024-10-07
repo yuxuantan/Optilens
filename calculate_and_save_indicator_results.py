@@ -8,6 +8,7 @@ def calculate_and_save_indicator_results():
     # fetch from supabase db and filter out those that already have updated values
     apex_bull_appear_cache = db.fetch_cached_data_from_supabase('apex_bull_appear')
     apex_bull_raging_cache = db.fetch_cached_data_from_supabase('apex_bull_raging')
+    apex_bear_appear_cache = db.fetch_cached_data_from_supabase('apex_bear_appear')
 
     # if the created_at date is after 5am SGT, then it should be removed
     def filter_tickers(cache, description):
@@ -20,43 +21,53 @@ def calculate_and_save_indicator_results():
 
     tickers_to_screen_bull_appear = filter_tickers(apex_bull_appear_cache, 'bull appear')
     tickers_to_screen_bull_raging = filter_tickers(apex_bull_raging_cache, 'bull raging')
+    tickers_to_screen_bear_appear = filter_tickers(apex_bear_appear_cache, 'bear appear')
     
     # print number to screen for each indicator 
     print(f"Tickers to screen for bull appear: {len(tickers_to_screen_bull_appear)}")
     print(f"Tickers to screen for bull raging: {len(tickers_to_screen_bull_raging)}")
+    print(f"Tickers to screen for bear appear: {len(tickers_to_screen_bear_appear)}")
 
-    total_tickers_to_screen = len(set(tickers_to_screen_bull_appear + tickers_to_screen_bull_raging))
+    total_tickers_to_screen = len(set(tickers_to_screen_bull_appear + tickers_to_screen_bull_raging + tickers_to_screen_bear_appear))
     tickers_screened = 0
     tickers_screened_bull_appear = 0
     tickers_screened_bull_raging = 0
+    tickers_screened_bear_appear = 0
 
     # for each ticker, calculate the indicator results and upsert to db
-    for ticker in set(tickers_to_screen_bull_appear + tickers_to_screen_bull_raging):
+    for ticker in set(tickers_to_screen_bull_appear + tickers_to_screen_bull_raging + tickers_to_screen_bear_appear):
         data = tg.fetch_stock_data(ticker)
         
         if ticker in tickers_to_screen_bull_appear:
             dates_bull_appear = ie.get_apex_bull_appear_dates(data)
-            analysis_result_bull_appear = get_analysis_results(dates_bull_appear, data, ticker)
+            analysis_result_bull_appear = get_analysis_results(dates_bull_appear, data)
             db.upsert_data_to_supabase('apex_bull_appear', {'ticker': ticker, 'analysis': analysis_result_bull_appear, 'created_at': 'now()'})
             print(f"Upserted bull appear analysis for {ticker}")
             tickers_screened_bull_appear += 1
 
         if ticker in tickers_to_screen_bull_raging:
             dates_bull_raging = ie.get_apex_bull_raging_dates(data)
-            analysis_result_bull_raging = get_analysis_results(dates_bull_raging, data, ticker)
+            analysis_result_bull_raging = get_analysis_results(dates_bull_raging, data)
             db.upsert_data_to_supabase('apex_bull_raging', {'ticker': ticker, 'analysis': analysis_result_bull_raging, 'created_at': 'now()'})
             print(f"Upserted bull raging analysis for {ticker}")
             tickers_screened_bull_raging += 1
+        
+        if ticker in tickers_to_screen_bear_appear:
+            dates_bear_appear = ie.get_apex_bear_appear_dates(data)
+            analysis_result_bear_appear = get_analysis_results(dates_bear_appear, data)
+            db.upsert_data_to_supabase('apex_bear_appear', {'ticker': ticker, 'analysis': analysis_result_bear_appear, 'created_at': 'now()'})
+            print(f"Upserted bear appear analysis for {ticker}")
+            tickers_screened_bear_appear += 1
 
         tickers_screened += 1
         print(f"Progress: {tickers_screened}/{total_tickers_to_screen} tickers screened")
         print(f"Progress for bull appear: {tickers_screened_bull_appear}/{len(tickers_to_screen_bull_appear)} tickers screened")
         print(f"Progress for bull raging: {tickers_screened_bull_raging}/{len(tickers_to_screen_bull_raging)} tickers screened")
+        print(f"Progress for bear appear: {tickers_screened_bear_appear}/{len(tickers_to_screen_bear_appear)} tickers screened")
 
-def get_analysis_results(dates, data, ticker):
+def get_analysis_results(dates, data):
     analysis_results = {}
     if dates is None:
-        print(f"No bull appear for {ticker}")
         return analysis_results
     
     for date in dates:

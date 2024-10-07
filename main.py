@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 import utils.indicator_evaluator as ie
-
+from datetime import datetime, timedelta
 # import streamlit_analytics
 import utils.telegram_controller as tc
 import utils.ticker_getter as tg
@@ -32,7 +32,7 @@ def ticker_input(key="ticker_input", default=None):
 def get_user_inputs(settings=None):
     if settings is None:
         settings = {
-            "tickers": ["Everything"],
+            "tickers": [],
             "indicator_settings": {
                 "golden_cross_sma": {
                     "is_enabled": False,
@@ -92,7 +92,7 @@ def get_user_inputs(settings=None):
             },
             "show_win_rate": False,
             "show_only_if_all_signals_met": True,
-            "show_only_latest_close_price_above": 20,
+            "show_only_close_price_above": 20,
             "show_only_volume_above": 100000,
             "recency": 2,
             "min_num_instances": 0,
@@ -113,7 +113,10 @@ def get_user_inputs(settings=None):
         # "is_enabled": True,
         # }
         settings["indicator_settings"]["apex_bull_appear"] = {
-            "is_enabled": True,
+            "is_enabled": False,
+        }
+        settings["indicator_settings"]["apex_bear_appear"] = {
+            "is_enabled": False,
         }
 
     # Use the ticker_input function for adding tickers
@@ -139,36 +142,7 @@ def get_user_inputs(settings=None):
 
     for indicator in selected_indicators:
         settings["indicator_settings"][indicator]["is_enabled"] = True
-        # if indicator == "apex_bear_raging":
-        #     with st.expander("Apex Bear Raging Settings", expanded=False):
-        #         st.caption(
-        #             "Apex Bear Raging is a signal that occurs when there are majority bullish flush up bars, starting from more than 1/2 way since the latest bear trap, and reaches previous bull trap, rebounding back into the range"
-        #         )
-        # if indicator == "apex_bull_raging":
-        #     with st.expander("Apex Bull Raging Settings", expanded=False):
-        #         st.caption(
-        #             "Apex Bull Raging is a signal that occurs when there are majority bearish flush down bars, starting from more than 1/2 way since the latest bull trap, and reaches previous bear trap, rebounding back into the range"
-        #         )
-        # if indicator == "apex_uptrend":
-        #     with st.expander("Apex Uptrend Settings", expanded=False):
-        #         st.caption(
-        #             "Apex Uptrend is a signal that occurs when there is lightning or M formation, above sma 50 and 200."
-        #         )
-        # if indicator == "apex_downtrend":
-        #     with st.expander("Apex Downtrend Settings", expanded=False):
-        #         st.caption(
-        #             "Apex Downtrend is a signal that occurs when there is N or W formation, below sma 50"
-        #         )
-        # if indicator == "apex_bull_appear":
-        #     with st.expander("Apex Bull Appear Settings", expanded=False):
-        #         st.caption(
-        #             "Apex Bull Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bullish bar (within up to 4 bars) after the wallaby, breaking from below Kangaroo Low, back into Kangaroo's price range."
-        #         )
-        # if indicator == "apex_bear_appear":
-        #     with st.expander("Apex Bear Appear Settings", expanded=False):
-        #         st.caption(
-        #             "Apex Bear Appear is a signal that occurs when there is a Kangaroo/ wallaby formation and a bearish bar (within up to 4 bars) after the wallaby, breaking from above Kangaroo High back into Kangaroo's price range."
-        #         )
+
         if indicator == "golden_cross_sma":
             with st.expander("Golden Cross Settings", expanded=False):
                 st.caption(
@@ -447,10 +421,10 @@ def get_user_inputs(settings=None):
             value=settings.get("min_num_instances", 0),
         )
 
-        settings["show_only_latest_close_price_above"] = st.number_input(
+        settings["show_only_close_price_above"] = st.number_input(
             "Only screen stocks where latest closing price is above",
             min_value=0,
-            value=settings.get("show_only_latest_close_price_above", 0),
+            value=settings.get("show_only_close_price_above", 0),
         )
 
         settings["show_only_if_all_signals_met"] = st.checkbox(
@@ -542,16 +516,13 @@ if screen_button:
         # Placeholder for the DataFrame that will be updated
         dataframe_placeholder = st.empty()
 
-        with st.status("Screening ...", expanded=True) as status:
+        with st.status(label="Screening ...", expanded=True) as status:
             result = ie.analyze_everything(settings)
             
             # print result as dataframe
             if result is not None:
                 # change result to dataframe
                 result = pd.DataFrame(result)
-                # filter results by recency
-                from datetime import datetime, timedelta
-
                 # Calculate the date 'settings.recency' days ago from today
                 recency_date = datetime.now() - timedelta(days=settings["recency"])
 
@@ -565,18 +536,6 @@ if screen_button:
                 # Filter results to only include data where the total_instances >= settings["min_num_instances"]
                 result = result[
                     result["total_instances"] >= settings["min_num_instances"]
-                ]
-
-                # Filter results to only include data where the latestClosePrice >= settings["show_only_latest_close_price_above"]
-                result = result[
-                    result["latest_close_price"]
-                    >= settings["show_only_latest_close_price_above"]
-                ]
-
-                # Filter results to only include data where the volume >= settings["show_only_volume_above"]
-                result = result[
-                    result["volume_on_latest_signal"]
-                    >= settings["show_only_volume_above"]
                 ]
 
                 # Calculate overall success rate and change percent
