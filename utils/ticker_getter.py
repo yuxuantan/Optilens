@@ -6,7 +6,7 @@ from pytickersymbols import PyTickerSymbols
 import requests
 from get_all_tickers import get_tickers as gt
 
-@st.cache_data(ttl="1d")
+# @st.cache_data(ttl="1d")
 def fetch_stock_data(ticker, period='max', interval='1d') -> pd.DataFrame:    
     try:
         data = yf.download(ticker, period=period, interval=interval)
@@ -31,13 +31,13 @@ def get_all_tickers():
     # print(tickers[:5])
     return tickers
     
-@st.cache_data(ttl="1d")
+# @st.cache_data(ttl="1d")
 def get_snp_500():
     stock_data = PyTickerSymbols()
     sp500_tickers = [stock['symbol'] for stock in stock_data.get_stocks_by_index('S&P 500')]
     return sp500_tickers
 
-@st.cache_data(ttl="1d")
+# @st.cache_data(ttl="1d")
 def get_dow_jones():
     stock_data = PyTickerSymbols()
     dow_jones_tickers = [stock['symbol'] for stock in stock_data.get_stocks_by_index('Dow Jones')]

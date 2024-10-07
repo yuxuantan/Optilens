@@ -24,6 +24,8 @@ def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str
     for indicator, config in enabled_settings.items():
         if indicator == "apex_bull_appear":
             data = db.fetch_cached_data_from_supabase("apex_bull_appear")
+        elif indicator == "apex_bull_raging":
+            data = db.fetch_cached_data_from_supabase("apex_bull_raging")
 
     # step 1; return all data.analysis keys as array
 
@@ -94,7 +96,9 @@ def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str
                 "volume_on_latest_signal": ticker_data["analysis"]
                 .get(next(reversed(ticker_data["analysis"]), None), {})
                 .get("volume", None),
-                "latest_close_price": ticker_data["latestClosePrice"],
+                "close_price_on_latest_signal": ticker_data["analysis"]
+                .get(next(reversed(ticker_data["analysis"]), None), {})
+                .get("close", None),
                 "total_instances": len(ticker_data["analysis"].keys()),
                 "success_rate_1D": success_rate_1D,
                 "avg_percentage_change_1D": avg_percentage_change_1D,
@@ -750,7 +754,7 @@ def get_apex_downtrend_dates(data):
     return downtrend_dates
 
 
-@st.cache_data(ttl="1d")
+# @st.cache_data(ttl="1d")
 def get_apex_bull_appear_dates(data, show_win_rate=True):
     aggregated_data = get_2day_aggregated_data(data)
 

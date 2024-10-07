@@ -8,3 +8,4 @@ yfinance
 pytickersymbols
 PyYAML
 supabase
+prettytable

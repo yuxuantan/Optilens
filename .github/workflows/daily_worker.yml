@@ -1,4 +1,4 @@
-name: Run bull raging alerting script
+name: Calculate, save and alert
 
 on:
   schedule:
@@ -25,4 +25,6 @@ jobs:
           pip install -r requirements.txt
 
       - name: execute py script # run main.py
-        run: python -u alert_bull_raging.py
+        run: |
+          python -u worker_scripts/calculate_and_save_indicator_results.py
+          python -u worker_scripts/alert_all.py

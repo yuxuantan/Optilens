@@ -10,6 +10,15 @@ def fetch_cached_data_from_supabase(table):
     response = supabase.table(table).select("*").execute()
     return response.data
 
+
+def upsert_data_to_supabase(table, data):
+    url: str = st.secrets["SUPABASE_URL"]
+    key: str = st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(url, key)
+    response = supabase.table(table).upsert(data).execute()
+    return response.data
+
+
 def fetch_configs():
     url: str = st.secrets["SUPABASE_URL"]
     key: str = st.secrets["SUPABASE_KEY"]
