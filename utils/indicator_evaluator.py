@@ -22,18 +22,18 @@ def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str
     }
     data = []
     for indicator, config in enabled_settings.items():
-        if indicator == "apex_bear_appear":
-            for ticker in settings["tickers"]:
-                data.append(
-                    {
-                        "ticker": ticker,
-                        "analysis": get_apex_bear_appear_dates(
-                            tg.fetch_stock_data(ticker)
-                        ),
-                    }
-                )
-        else:
-            data = db.fetch_cached_data_from_supabase(indicator)
+        # if indicator == "apex_bear_appear":
+        #     for ticker in settings["tickers"]:
+        #         data.append(
+        #             {
+        #                 "ticker": ticker,
+        #                 "analysis": get_apex_bear_appear_dates(
+        #                     tg.fetch_stock_data(ticker)
+        #                 ),
+        #             }
+        #         )
+        # else:
+        data = db.fetch_cached_data_from_supabase(indicator)
 
     # step 1; return all data.analysis keys as array
 
