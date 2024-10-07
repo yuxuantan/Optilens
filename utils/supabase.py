@@ -1,27 +1,29 @@
 from supabase import create_client, Client
 import streamlit as st
+import os
 
-# response = supabase.table("countries").select("*").execute()
+def get_secret(key: str) -> str:
+    return st.secrets.get(key, os.getenv(key))
 
 def fetch_cached_data_from_supabase(table):
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
+    url: str = get_secret("SUPABASE_URL")
+    key: str = get_secret("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
     response = supabase.table(table).select("*").execute()
     return response.data
 
 
 def upsert_data_to_supabase(table, data):
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
+    url: str = get_secret("SUPABASE_URL")
+    key: str = get_secret("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
     response = supabase.table(table).upsert(data).execute()
     return response.data
 
 
 def fetch_configs():
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
+    url: str = get_secret("SUPABASE_URL")
+    key: str = get_secret("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
 
     try:
@@ -33,8 +35,8 @@ def fetch_configs():
 
 
 def create_user(email: str) -> str:
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
+    url: str = get_secret("SUPABASE_URL")
+    key: str = get_secret("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
 
     try:
@@ -48,8 +50,8 @@ def create_user(email: str) -> str:
 
 
 def update_telegram_chat_id(user_id: str, telegram_id: str) -> None:
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
+    url: str = get_secret("SUPABASE_URL")
+    key: str = get_secret("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
 
     try:
@@ -67,8 +69,8 @@ def update_telegram_chat_id(user_id: str, telegram_id: str) -> None:
 
 
 def fetch_user_data(user_id: str) -> dict:
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
+    url: str = get_secret("SUPABASE_URL")
+    key: str = get_secret("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
 
     user = None
@@ -98,8 +100,8 @@ def fetch_user_data(user_id: str) -> dict:
 
 
 def update_user_config(creator_user_id: str, config_name: str, settings: dict) -> None:
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
+    url: str = get_secret("SUPABASE_URL")
+    key: str = get_secret("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
 
     try:
@@ -113,8 +115,8 @@ def update_user_config(creator_user_id: str, config_name: str, settings: dict) -
 
 
 def create_user_config(creator_user_id: str, config_name: str, settings: dict) -> None:
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
+    url: str = get_secret("SUPABASE_URL")
+    key: str = get_secret("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
     print(creator_user_id)
     # check if filter with the same creator_user_id and filter_name exists. Throw error if it does
@@ -150,8 +152,8 @@ def delete_user_config(
     creator_user_id: str,
     filter_name: str,
 ) -> None:
-    url: str = st.secrets["SUPABASE_URL"]
-    key: str = st.secrets["SUPABASE_KEY"]
+    url: str = get_secret("SUPABASE_URL")
+    key: str = get_secret("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
 
     try:
