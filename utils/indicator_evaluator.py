@@ -828,7 +828,6 @@ def get_apex_bear_appear_dates(data):
             #     + str(curr_date)
             # )
             break
-    print(bear_appear_dates)
     
     return pd.DatetimeIndex(bear_appear_dates)
 

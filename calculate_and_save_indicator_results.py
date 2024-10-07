@@ -2,6 +2,8 @@ import utils.ticker_getter as tg
 import utils.indicator_evaluator as ie
 import utils.supabase as db
 import pandas as pd
+import numpy as np
+
 def calculate_and_save_indicator_results():
     stock_list = tg.get_all_tickers()
     # fetch all tickers
