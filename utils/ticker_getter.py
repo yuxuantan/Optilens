@@ -18,6 +18,26 @@ def fetch_stock_data(ticker, period='max', interval='1d') -> pd.DataFrame:
 # @st.cache_data(ttl="1d")
 # import requests
 
+def fetch_next_earnings_date(ticker_symbol):
+        
+    # Fetch the stock data
+    stock = yf.Ticker(ticker_symbol)
+
+    # Get the earnings dates DataFrame
+    earnings_dates_df = stock.earnings_dates
+
+    # Ensure the current time has the same timezone as the earnings dates DataFrame
+
+    # Get the next upcoming earnings date by filtering dates greater than current time
+    if earnings_dates_df is not None and not earnings_dates_df.empty:
+        current_time = pd.Timestamp.now().tz_localize(earnings_dates_df.index.tz)
+        next_earnings_date = earnings_dates_df[earnings_dates_df.index > current_time].index.min()
+        return next_earnings_date
+    else:
+        print(f"No earnings dates found for {ticker_symbol}")
+        return None
+
+
 def get_all_tickers():
     # fetch from file sec_company_tickers.json
     url = "sec_company_tickers.json"

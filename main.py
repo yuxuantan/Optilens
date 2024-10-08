@@ -96,6 +96,7 @@ def get_user_inputs(settings=None):
             "show_only_volume_above": 100000,
             "recency": 2,
             "min_num_instances": 0,
+            "show_only_earnings_within_days": 30,
             "x": 20,
         }
 
@@ -103,6 +104,7 @@ def get_user_inputs(settings=None):
         # settings["indicator_settings"]["apex_bear_raging"] = {
         #     "is_enabled": False,
         # }
+        settings["tickers"] = ["Everything"]
         settings["indicator_settings"]["apex_bull_raging"] = {
             "is_enabled": False,
         }
@@ -438,6 +440,13 @@ def get_user_inputs(settings=None):
             value=settings.get("show_only_volume_above", 100000),
         )
 
+        settings["show_only_earnings_within_days"] = st.number_input(
+            "Only show stocks where earnings report is within the next # days",
+            min_value=0,
+            value=settings.get("show_only_earnings_within_days", 30),
+        )
+
+
     return settings
 
 
@@ -538,6 +547,28 @@ if screen_button:
                     result["total_instances"] >= settings["min_num_instances"]
                 ]
 
+                 # get the next earnings report date for each ticker
+                result["next_earnings_date"] = result["ticker"].apply(
+                    lambda x: tg.fetch_next_earnings_date(x)
+                )
+
+               
+                # filter out next earnings date that is more than 1 month away
+                # Convert 'next_earnings_date' to a timezone-aware datetime in UTC
+                result["next_earnings_date"] = pd.to_datetime(result["next_earnings_date"], errors='coerce')
+
+                # Convert to UTC if not already timezone-aware
+                if result["next_earnings_date"].dt.tz is None:
+                    result["next_earnings_date"] = result["next_earnings_date"].dt.tz_localize('UTC')
+                else:
+                    result["next_earnings_date"] = result["next_earnings_date"].dt.tz_convert('UTC')
+
+                # Filter for dates less than the current time plus the given days in the 'settings'
+                result = result[
+                    result["next_earnings_date"]
+                    < (pd.Timestamp.now(tz='UTC') + timedelta(days=settings["show_only_earnings_within_days"]))
+                ]
+
                 # Calculate overall success rate and change percent
                 overall_num_instances = result["total_instances"].sum()
                 overall_num_instances_rise_1D = result["total_success_count_1D"].sum()
@@ -581,6 +612,8 @@ if screen_button:
                 result.rename(
                     columns={"common_dates": "latest_signal_entry_date"}, inplace=True
                 )
+
+               
 
                 dataframe_placeholder.dataframe(result, width=1000, hide_index=True)
 

@@ -52,13 +52,13 @@ def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str
         ticker_data["analysis"] = {
             k: v
             for k, v in ticker_data["analysis"].items()
-            if v.get("close", float("-inf")) > settings["show_only_close_price_above"]
+            if (v.get("close") is None or v.get("close", float("-inf")) > settings["show_only_close_price_above"])
         }
         # filter out those that are not above certain volume
         ticker_data["analysis"] = {
             k: v
             for k, v in ticker_data["analysis"].items()
-            if v.get("volume", float("-inf")) > settings["show_only_volume_above"]
+            if (v.get("volume") is None or v.get("volume", float("-inf")) > settings["show_only_volume_above"])
         }
 
         # calculate ticker level success rate and avg percentage change
