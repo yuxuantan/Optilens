@@ -48,18 +48,17 @@ def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str
         total_success_count_20D = 0
         total_percentage_change_20D = 0
 
-
         # filter out those that are not above certain market price
         ticker_data["analysis"] = {
             k: v
             for k, v in ticker_data["analysis"].items()
-            if v.get("close", float('-inf')) > settings["show_only_close_price_above"]
+            if v.get("close", float("-inf")) > settings["show_only_close_price_above"]
         }
         # filter out those that are not above certain volume
         ticker_data["analysis"] = {
             k: v
             for k, v in ticker_data["analysis"].items()
-            if v.get("volume", float('-inf')) > settings["show_only_volume_above"]
+            if v.get("volume", float("-inf")) > settings["show_only_volume_above"]
         }
 
         # calculate ticker level success rate and avg percentage change
@@ -141,10 +140,8 @@ def analyze_everything(settings: Dict[str, int]) -> Dict[str, Dict[str, List[str
     return response
 
 
-
 def get_apex_bull_raging_dates(data):
     data = get_2day_aggregated_data(data)
-
 
     high_inflexion_points = get_high_inflexion_points(data)
     potential_bear_traps = get_low_inflexion_points(data)
@@ -251,9 +248,114 @@ def get_apex_bull_raging_dates(data):
 
     return bull_raging_dates
 
-def get_apex_bear_raging_dates(data, show_win_rate=True):
-    return[]
 
+def get_apex_bear_raging_dates(data):
+    data = get_2day_aggregated_data(data)
+
+    low_inflexion_points = get_low_inflexion_points(data)
+    potential_bull_traps = get_high_inflexion_points(data)
+
+    future_bull_traps = potential_bull_traps.copy()
+
+    bear_raging_dates = []
+
+    for low_point in low_inflexion_points:
+        low_point_date, low_point_value = low_point
+        # print(f"************ checking {low_point_date}: ************")
+        if low_point_date not in data.index:
+            continue
+
+        # Find the stopping point (which is the next bull trap) - TODO: might not be true. as long as majority flush up, keep goings
+        stopping_point_date = next(
+            (
+                trap[0]
+                for trap in future_bull_traps
+                if trap[0] > low_point_date and trap[1] > low_point_value
+            ),
+            data.index[-1],
+        )
+        future_bull_traps = [
+            trap for trap in future_bull_traps if trap[0] >= low_point_date
+        ]
+
+        # print(f"stopping point date: {stopping_point_date}")
+
+        previous_bull_trap = find_highest_bull_trap_within_price_range(
+            tuple(potential_bull_traps),
+            low_point_date,
+            low_point_value,
+            data.loc[stopping_point_date]["High"],
+        )
+
+        if previous_bull_trap is None:
+            # print("❌ no previous bull trap found")
+            continue
+        # print(f"previous_bull_trap: {previous_bull_trap}")
+
+        mid_point = (
+            previous_bull_trap[1] + (low_point_value - previous_bull_trap[1]) / 2
+        )
+
+        # Analyze the range from low point to stopping point
+        range_data = data.loc[low_point_date:stopping_point_date]
+        flush_up_mask = (range_data["Close"] - range_data["Open"]) > 0.7 * (
+            range_data["High"] - range_data["Low"]
+        )
+        flush_up_bars = range_data[flush_up_mask]
+
+        if flush_up_bars.empty or flush_up_bars.iloc[0]["Low"] > mid_point:
+            # print("❌ first flush up started after mid point, or didn't happen at all")
+            continue
+        # print(
+        #     f"✅ first flush up started at {flush_up_bars.iloc[0]['Low']} before mid point {mid_point}"
+        # )
+
+        # Find the date which broke above bull trap
+        break_above_bull_trap = range_data.index[
+            range_data["High"] > previous_bull_trap[1]
+        ]
+        if break_above_bull_trap.empty:
+            # print(
+            #     f"❌ no break above bull trap {previous_bull_trap} before the price reaches stopping point"
+            # )
+            continue
+        date_which_broke_above_bull_trap = break_above_bull_trap[0]
+        # print(
+        #     f"✅ date_which_broke_above_bull_trap: {date_which_broke_above_bull_trap}"
+        # )
+
+        total_bar_count = len(range_data)
+        flush_up_count = flush_up_mask.sum()
+
+        if total_bar_count < 5 or flush_up_count / total_bar_count < 0.3:
+            # print(
+            #     f"❌ less than 5 bars or not majority flush up, flush up bars: {flush_up_count}, total bars: {total_bar_count}"
+            # )
+            continue
+        # print(
+        #     f"✅ > 5 bars and majority flush up, flush up bars: {flush_up_count}, total bars: {total_bar_count}"
+        # )
+
+        # Check 6 bars after break above bull trap
+        post_break_data = data.loc[date_which_broke_above_bull_trap:].head(6)
+
+        for i, (date, row) in enumerate(post_break_data.iterrows(), 1):
+            if row["Close"] < previous_bull_trap[1] and (
+                row["Open"] - row["Close"] > 0.5 * (row["High"] - row["Low"])
+                or (
+                    row["Open"] < row["High"] - 4 / 5 * (row["High"] - row["Low"])
+                    and row["Close"] < row["High"] - 4 / 5 * (row["High"] - row["Low"])
+                )
+            ):
+                # print(
+                #     f"🚀 {date} closed at {row['Close']}; below bull trap. All Conditions met!"
+                # )
+                bear_raging_dates.append(date)
+                break
+            # else:
+                # print(f"❌ check bar {i}, no bearish bar closing below stop loss zone")
+
+    return bear_raging_dates
 
 
 # @st.cache_data(ttl="1d")
@@ -544,7 +646,6 @@ def get_apex_bull_appear_dates(data):
             aggregated_data.index[end_index],
         )
 
-
         any_bar_went_below_kangaroo = False
         bullish_bar_went_back_up_to_range = False
 
@@ -585,7 +686,10 @@ def get_apex_bull_appear_dates(data):
             curr_date = aggregated_data.index[target_pos]
 
             # if high is higher than kangaroo, exit
-            if not any_bar_went_below_kangaroo and curr_data["High"] > aggregated_data.iloc[kangaroo_pos]["High"]:
+            if (
+                not any_bar_went_below_kangaroo
+                and curr_data["High"] > aggregated_data.iloc[kangaroo_pos]["High"]
+            ):
                 # print("Exiting because high is higher than kangaroo")
                 break
 
@@ -705,7 +809,6 @@ def get_apex_bear_appear_dates(data):
             aggregated_data.index[end_index],
         )
 
-
         any_bar_went_above_kangaroo = False
         bearish_bar_went_back_down_to_range = False
 
@@ -718,7 +821,7 @@ def get_apex_bear_appear_dates(data):
             # print("Condition 1 not met: 20 SMA should slope downwards")
             continue
         # else:
-            # print("Condition 1 met: 20 SMA slopes upwards")
+        # print("Condition 1 met: 20 SMA slopes upwards")
 
         # Condition 2: Should be below 20 sma (roughly)
         if (
@@ -727,11 +830,11 @@ def get_apex_bear_appear_dates(data):
         ):
             pass
             # print(
-                # f"Condition 2 met: K High is below 50 sma: {aggregated_data['Low'].iloc[kangaroo_pos]} {aggregated_data['SMA_50'].iloc[kangaroo_pos]}"
+            # f"Condition 2 met: K High is below 50 sma: {aggregated_data['Low'].iloc[kangaroo_pos]} {aggregated_data['SMA_50'].iloc[kangaroo_pos]}"
             # )
         else:
             # print(
-                # f"Condition 2 not met: K High should be below 50 sma {aggregated_data['Low'].iloc[kangaroo_pos]} {aggregated_data['SMA_50'].iloc[kangaroo_pos]}"
+            # f"Condition 2 not met: K High should be below 50 sma {aggregated_data['Low'].iloc[kangaroo_pos]} {aggregated_data['SMA_50'].iloc[kangaroo_pos]}"
             # )
             continue
 
@@ -746,7 +849,10 @@ def get_apex_bear_appear_dates(data):
             curr_date = aggregated_data.index[target_pos]
 
             # if low is lower than kangaroo, exit
-            if not any_bar_went_above_kangaroo and curr_data["Low"] > aggregated_data.iloc[kangaroo_pos]["Low"]:
+            if (
+                not any_bar_went_above_kangaroo
+                and curr_data["Low"] > aggregated_data.iloc[kangaroo_pos]["Low"]
+            ):
                 # print("Exiting because low is lower than kangaroo")
                 break
 
@@ -828,7 +934,7 @@ def get_apex_bear_appear_dates(data):
             #     + str(curr_date)
             # )
             break
-    
+
     return pd.DatetimeIndex(bear_appear_dates)
 
 

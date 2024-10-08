@@ -6,13 +6,11 @@ import numpy as np
 
 def calculate_and_save_indicator_results():
     stock_list = tg.get_all_tickers()
-    # fetch all tickers
-    # fetch from supabase db and filter out those that already have updated values
     apex_bull_appear_cache = db.fetch_cached_data_from_supabase('apex_bull_appear')
     apex_bull_raging_cache = db.fetch_cached_data_from_supabase('apex_bull_raging')
     apex_bear_appear_cache = db.fetch_cached_data_from_supabase('apex_bear_appear')
+    apex_bear_raging_cache = db.fetch_cached_data_from_supabase('apex_bear_raging')
 
-    # if the created_at date is after 5am SGT, then it should be removed
     def filter_tickers(cache, description):
         filtered_tickers = [
             ticker['ticker'] for ticker in cache
@@ -21,63 +19,54 @@ def calculate_and_save_indicator_results():
         print(f"Tickers no need to screen {description}: {len(filtered_tickers)}")
         return list(set(stock_list) - set(filtered_tickers))
 
-    tickers_to_screen_bull_appear = filter_tickers(apex_bull_appear_cache, 'bull appear')
-    tickers_to_screen_bull_raging = filter_tickers(apex_bull_raging_cache, 'bull raging')
-    tickers_to_screen_bear_appear = filter_tickers(apex_bear_appear_cache, 'bear appear')
-    
-    # print number to screen for each indicator 
-    print(f"Tickers to screen for bull appear: {len(tickers_to_screen_bull_appear)}")
-    print(f"Tickers to screen for bull raging: {len(tickers_to_screen_bull_raging)}")
-    print(f"Tickers to screen for bear appear: {len(tickers_to_screen_bear_appear)}")
+    tickers_to_screen = {
+        'bull_appear': filter_tickers(apex_bull_appear_cache, 'bull appear'),
+        'bull_raging': filter_tickers(apex_bull_raging_cache, 'bull raging'),
+        'bear_appear': filter_tickers(apex_bear_appear_cache, 'bear appear'),
+        'bear_raging': filter_tickers(apex_bear_raging_cache, 'bear raging')
+    }
 
-    total_tickers_to_screen = len(set(tickers_to_screen_bull_appear + tickers_to_screen_bull_raging + tickers_to_screen_bear_appear))
-    tickers_screened = 0
-    tickers_screened_bull_appear = 0
-    tickers_screened_bull_raging = 0
-    tickers_screened_bear_appear = 0
+    for key, tickers in tickers_to_screen.items():
+        print(f"Tickers to screen for {key.replace('_', ' ')}: {len(tickers)}")
 
-    # for each ticker, calculate the indicator results and upsert to db
-    for ticker in set(tickers_to_screen_bull_appear + tickers_to_screen_bull_raging + tickers_to_screen_bear_appear):
-        data = tg.fetch_stock_data(ticker)
+    total_tickers_to_screen = len(set(sum(tickers_to_screen.values(), [])))
+    tickers_screened = {key: 0 for key in tickers_to_screen}
+    tickers_screened_total = 0
+
+    def process_ticker(ticker, indicator, get_dates_func, table_name):
+        dates = get_dates_func(ticker_data)
+        analysis_result = get_analysis_results(dates, ticker_data)
+        analysis_result = convert_to_serializable(analysis_result)
+        if analysis_result:
+            try:
+                db.upsert_data_to_supabase(table_name, {'ticker': ticker, 'analysis': analysis_result, 'created_at': 'now()'})
+                print(f"Upserted {indicator} analysis for {ticker}")
+            except Exception as e:
+                print(f"❌ Failed to upsert {indicator} analysis for {ticker}: {e}")
+            print(f"Upserted {indicator} analysis for {ticker}")
+        else:
+            print(f"No {indicator} analysis to upsert for {ticker}")
+        tickers_screened[indicator] += 1
+
+    for ticker in set(sum(tickers_to_screen.values(), [])):
+        ticker_data = tg.fetch_stock_data(ticker)
+
+        if ticker in tickers_to_screen['bull_appear']:
+            process_ticker(ticker, 'bull_appear', ie.get_apex_bull_appear_dates, 'apex_bull_appear')
+
+        if ticker in tickers_to_screen['bull_raging']:
+            process_ticker(ticker, 'bull_raging', ie.get_apex_bull_raging_dates, 'apex_bull_raging')
+
+        if ticker in tickers_to_screen['bear_appear']:
+            process_ticker(ticker, 'bear_appear', ie.get_apex_bear_appear_dates, 'apex_bear_appear')
         
-        if ticker in tickers_to_screen_bull_appear:
-            dates_bull_appear = ie.get_apex_bull_appear_dates(data)
-            analysis_result_bull_appear = get_analysis_results(dates_bull_appear, data)
-            analysis_result_bull_appear = convert_to_serializable(analysis_result_bull_appear)
-            if analysis_result_bull_appear:
-                db.upsert_data_to_supabase('apex_bull_appear', {'ticker': ticker, 'analysis': analysis_result_bull_appear, 'created_at': 'now()'})
-                print(f"Upserted bull appear analysis for {ticker}")
-            else:
-                print(f"No bull appear analysis to upsert for {ticker}")
-            tickers_screened_bull_appear += 1
+        if ticker in tickers_to_screen['bear_raging']:
+            process_ticker(ticker, 'bear_raging', ie.get_apex_bear_raging_dates, 'apex_bear_raging')
 
-        if ticker in tickers_to_screen_bull_raging:
-            dates_bull_raging = ie.get_apex_bull_raging_dates(data)
-            analysis_result_bull_raging = get_analysis_results(dates_bull_raging, data)
-            analysis_result_bull_raging = convert_to_serializable(analysis_result_bull_raging)
-            if analysis_result_bull_raging:
-                db.upsert_data_to_supabase('apex_bull_raging', {'ticker': ticker, 'analysis': analysis_result_bull_raging, 'created_at': 'now()'})
-                print(f"Upserted bull raging analysis for {ticker}")
-            else:
-                print(f"No bull raging analysis to upsert for {ticker}")
-            tickers_screened_bull_raging += 1
-        
-        if ticker in tickers_to_screen_bear_appear:
-            dates_bear_appear = ie.get_apex_bear_appear_dates(data)
-            analysis_result_bear_appear = get_analysis_results(dates_bear_appear, data)
-            analysis_result_bear_appear = convert_to_serializable(analysis_result_bear_appear)
-            if analysis_result_bear_appear:
-                db.upsert_data_to_supabase('apex_bear_appear', {'ticker': ticker, 'analysis': analysis_result_bear_appear, 'created_at': 'now()'})
-                print(f"Upserted bear appear analysis for {ticker}")
-            else:
-                print(f"No bear appear analysis to upsert for {ticker}")
-            tickers_screened_bear_appear += 1
-
-        tickers_screened += 1
-        print(f"Progress: {tickers_screened}/{total_tickers_to_screen} tickers screened")
-        print(f"Progress for bull appear: {tickers_screened_bull_appear}/{len(tickers_to_screen_bull_appear)} tickers screened")
-        print(f"Progress for bull raging: {tickers_screened_bull_raging}/{len(tickers_to_screen_bull_raging)} tickers screened")
-        print(f"Progress for bear appear: {tickers_screened_bear_appear}/{len(tickers_to_screen_bear_appear)} tickers screened")
+        tickers_screened_total += 1
+        print(f"Progress: {tickers_screened_total}/{total_tickers_to_screen} tickers screened")
+        for key, count in tickers_screened.items():
+            print(f"Progress for {key.replace('_', ' ')}: {count}/{len(tickers_to_screen[key])} tickers screened")
 
 def get_analysis_results(dates, data):
     analysis_results = {}
