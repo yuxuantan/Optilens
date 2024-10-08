@@ -16,7 +16,7 @@ def calculate_and_save_indicator_results():
     def filter_tickers(cache, description):
         filtered_tickers = [
             ticker['ticker'] for ticker in cache
-            if ticker['created_at'] > '05:00:00' and ticker['analysis']
+            if ticker['created_at'] > '05:00:00'
         ]
         print(f"Tickers no need to screen {description}: {len(filtered_tickers)}")
         return list(set(stock_list) - set(filtered_tickers))
@@ -44,24 +44,33 @@ def calculate_and_save_indicator_results():
             dates_bull_appear = ie.get_apex_bull_appear_dates(data)
             analysis_result_bull_appear = get_analysis_results(dates_bull_appear, data)
             analysis_result_bull_appear = convert_to_serializable(analysis_result_bull_appear)
-            db.upsert_data_to_supabase('apex_bull_appear', {'ticker': ticker, 'analysis': analysis_result_bull_appear, 'created_at': 'now()'})
-            print(f"Upserted bull appear analysis for {ticker}")
+            if analysis_result_bull_appear:
+                db.upsert_data_to_supabase('apex_bull_appear', {'ticker': ticker, 'analysis': analysis_result_bull_appear, 'created_at': 'now()'})
+                print(f"Upserted bull appear analysis for {ticker}")
+            else:
+                print(f"No bull appear analysis to upsert for {ticker}")
             tickers_screened_bull_appear += 1
 
         if ticker in tickers_to_screen_bull_raging:
             dates_bull_raging = ie.get_apex_bull_raging_dates(data)
             analysis_result_bull_raging = get_analysis_results(dates_bull_raging, data)
             analysis_result_bull_raging = convert_to_serializable(analysis_result_bull_raging)
-            db.upsert_data_to_supabase('apex_bull_raging', {'ticker': ticker, 'analysis': analysis_result_bull_raging, 'created_at': 'now()'})
-            print(f"Upserted bull raging analysis for {ticker}")
+            if analysis_result_bull_raging:
+                db.upsert_data_to_supabase('apex_bull_raging', {'ticker': ticker, 'analysis': analysis_result_bull_raging, 'created_at': 'now()'})
+                print(f"Upserted bull raging analysis for {ticker}")
+            else:
+                print(f"No bull raging analysis to upsert for {ticker}")
             tickers_screened_bull_raging += 1
         
         if ticker in tickers_to_screen_bear_appear:
             dates_bear_appear = ie.get_apex_bear_appear_dates(data)
             analysis_result_bear_appear = get_analysis_results(dates_bear_appear, data)
             analysis_result_bear_appear = convert_to_serializable(analysis_result_bear_appear)
-            db.upsert_data_to_supabase('apex_bear_appear', {'ticker': ticker, 'analysis': analysis_result_bear_appear, 'created_at': 'now()'})
-            print(f"Upserted bear appear analysis for {ticker}")
+            if analysis_result_bear_appear:
+                db.upsert_data_to_supabase('apex_bear_appear', {'ticker': ticker, 'analysis': analysis_result_bear_appear, 'created_at': 'now()'})
+                print(f"Upserted bear appear analysis for {ticker}")
+            else:
+                print(f"No bear appear analysis to upsert for {ticker}")
             tickers_screened_bear_appear += 1
 
         tickers_screened += 1
@@ -102,5 +111,4 @@ def convert_to_serializable(data):
     else:
         return data
 
-calculate_and_save_indicator_results()
 calculate_and_save_indicator_results()
