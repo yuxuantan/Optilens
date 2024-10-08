@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta
-from prettytable import PrettyTable
 import utils.telegram_controller as tc
 import utils.supabase as db
 
 chat_ids = [
     27392018,  # me
-    432502167 # rainbow
+    # 432502167 # rainbow
 ]
 
 def alert(indicator_name):
@@ -13,11 +12,9 @@ def alert(indicator_name):
     bull_raging_cache = db.fetch_cached_data_from_supabase(indicator_name)
 
     # Filter out data with 'analysis' column's last JSON key older than 5 days
-    five_days_ago = datetime.now() - timedelta(days=5)
+    five_days_ago = datetime.now() - timedelta(days=6)
 
-    # Create a PrettyTable instance
-    table = PrettyTable()
-    table.field_names = ["Ticker", "Entry Date", "Entry Close Price", "Volume"]
+    results_output = "__ *ticker | entry date | close price | volume* __\n"
 
     # Filter and format the data
     filtered_tickers = []
@@ -39,17 +36,19 @@ def alert(indicator_name):
                 if volume != '?':
                     volume = round(float(volume))
 
+                if entry_close_price == '?' or volume == '?' or entry_close_price < 20 or volume < 1000000:
+                    continue
+
                 # Add row to the table
-                table.add_row([ticker_symbol, entry_date, entry_close_price, volume])
+                results_output += f"✅ *{ticker_symbol}* | {entry_date} | {entry_close_price} | {volume}\n"
 
     # Check if there are results
     if not filtered_tickers:
-        return f"*{indicator_name} screening completed*\n\nNo stocks found matching the criteria"
+        return f"*{indicator_name} screening completed*\n\n⚙️ Close price > 20, Volume > 100k\n\nNo stocks found matching the criteria"
 
     # Use PrettyTable's string representation to create the message
-    table_output = f"```\n{table}\n```"
 
-    output_msg = f"""*{indicator_name} screening completed*\n\n*Screen results:*\n{table_output}"""
+    output_msg = f"""*{indicator_name} screening completed*\n\n⚙️ Close price > 20, Volume > 100k \n\n *Screen results:*\n{results_output}"""
     
     return output_msg
 
