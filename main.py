@@ -101,9 +101,9 @@ def get_user_inputs(settings=None):
         }
 
     if show_params == "apex":
-        # settings["indicator_settings"]["apex_bear_raging"] = {
-        #     "is_enabled": False,
-        # }
+        settings["indicator_settings"]["apex_bear_raging"] = {
+            "is_enabled": False,
+        }
         settings["tickers"] = ["Everything"]
         settings["indicator_settings"]["apex_bull_raging"] = {
             "is_enabled": False,
