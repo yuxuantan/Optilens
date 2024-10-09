@@ -2,7 +2,7 @@ name: Calculate, save and alert
 
 on:
   schedule:
-  - cron: '0 0 * * 1-5'  # This cron expression triggers the workflow daily at 8 am UTC on weekdays (Monday to Friday)
+  - cron: '0 21 * * 0-4' # 5AM mon - thu
   workflow_dispatch:       # Allow manual triggering of the workflow
 
 jobs:
