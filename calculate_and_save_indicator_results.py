@@ -6,6 +6,7 @@ import numpy as np
 
 def calculate_and_save_indicator_results():
     stock_list = tg.get_all_tickers()
+    # stock_list = ["REXR-PC"]
 
     apex_bull_appear_cache = db.fetch_cached_data_from_supabase('apex_bull_appear')
     apex_bull_raging_cache = db.fetch_cached_data_from_supabase('apex_bull_raging')
@@ -14,8 +15,8 @@ def calculate_and_save_indicator_results():
 
     def filter_tickers(cache, description):
         filtered_tickers = [
-            ticker['ticker'] for ticker in cache
-            if ticker['created_at'] > '05:00:00'
+            # ticker['ticker'] for ticker in cache
+            # if ticker['created_at'] > '05:00:00'
         ]
         print(f"Tickers no need to screen {description}: {len(filtered_tickers)}")
         return list(set(stock_list) - set(filtered_tickers))
